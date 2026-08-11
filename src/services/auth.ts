@@ -1,0 +1,63 @@
+import { AuthCode, User } from '../models';
+import { AuthCodeService } from './authCodes';
+import { EmailService } from './email';
+import { TokenService, accessToken } from './tokens';
+import { AppError } from '../errors';
+import { comparePassword, hashPassword, normalizeEmail } from '../utils';
+
+export class AuthService {
+  constructor(private readonly codes: AuthCodeService, private readonly tokens: TokenService, private readonly email: EmailService) {}
+
+  private publicUser(user: any) {
+    return { id: user._id.toString(), firstName: user.firstName, lastName: user.lastName, email: user.email, role: user.role, status: user.status, emailVerified: user.emailVerified, profilePicture: user.profilePicture, lastLoginAt: user.lastLoginAt, createdAt: user.createdAt, updatedAt: user.updatedAt };
+  }
+
+  async register(input: { firstName: string; lastName: string; email: string; password: string }) {
+    const email = normalizeEmail(input.email);
+    if (await User.exists({ email })) throw new AppError(409, 'An account with this email already exists', 'EMAIL_EXISTS');
+    const user = await User.create({ firstName: input.firstName, lastName: input.lastName, email, passwordHash: await hashPassword(input.password), role: 'student' });
+    const code = await this.codes.issue(user._id, 'email_verification');
+    await this.email.sendVerification(email, code);
+    return this.publicUser(user);
+  }
+
+  async verifyEmail(emailInput: string, code: string) {
+    const user = await User.findOne({ email: normalizeEmail(emailInput) });
+    if (!user) throw new AppError(400, 'Invalid or expired code', 'INVALID_CODE');
+    await this.codes.verify(user._id, 'email_verification', code);
+    user.emailVerified = true; await user.save(); return this.publicUser(user);
+  }
+
+  async resendVerification(emailInput: string) {
+    const user = await User.findOne({ email: normalizeEmail(emailInput) });
+    if (!user || user.emailVerified) return;
+    const recent = await AuthCode.findOne({ userId: user._id, purpose: 'email_verification', createdAt: { $gt: new Date(Date.now() - 60000) } });
+    if (recent) throw new AppError(429, 'Please wait before requesting another code', 'CODE_COOLDOWN');
+    const code = await this.codes.issue(user._id, 'email_verification'); await this.email.sendVerification(user.email, code);
+  }
+
+  async login(emailInput: string, password: string, metadata?: object) {
+    const user = await User.findOne({ email: normalizeEmail(emailInput) }).select('+passwordHash');
+    if (!user || !(await comparePassword(password, user.passwordHash))) throw new AppError(401, 'Invalid email or password', 'INVALID_CREDENTIALS');
+    if (!user.emailVerified) throw new AppError(403, 'Email verification is required', 'EMAIL_NOT_VERIFIED');
+    if (user.status !== 'active') throw new AppError(403, 'This account is not active', 'ACCOUNT_INACTIVE');
+    user.lastLoginAt = new Date(); await user.save();
+    const session = await this.tokens.createSession(user._id, metadata);
+    return { user: this.publicUser(user), access: accessToken({ userId: user._id.toString(), role: user.role }), refresh: session.raw };
+  }
+
+  async refresh(raw: string | undefined) {
+    if (!raw) throw new AppError(401, 'Invalid refresh token', 'INVALID_REFRESH_TOKEN');
+    const rotated = await this.tokens.rotate(raw);
+    if (rotated.kind !== 'rotated') throw new AppError(401, 'Invalid refresh token', 'INVALID_REFRESH_TOKEN');
+    const user = await User.findById(rotated.session.userId);
+    if (!user || user.status !== 'active') throw new AppError(401, 'Account is not active', 'ACCOUNT_INACTIVE');
+    return { access: accessToken({ userId: user._id.toString(), role: user.role }), refresh: rotated.raw };
+  }
+
+  async me(userId: string) { const user = await User.findById(userId); if (!user) throw new AppError(401, 'Authentication required', 'UNAUTHENTICATED'); return this.publicUser(user); }
+  async logout(raw: string | undefined) { if (raw) await this.tokens.revoke(raw); }
+  async forgotPassword(emailInput: string) { const user = await User.findOne({ email: normalizeEmail(emailInput) }); if (user) { const code = await this.codes.issue(user._id, 'password_reset'); await this.email.sendPasswordReset(user.email, code); } }
+  async verifyReset(emailInput: string, code: string) { const user = await User.findOne({ email: normalizeEmail(emailInput) }); if (!user) throw new AppError(400, 'Invalid or expired code', 'INVALID_CODE'); await this.codes.verify(user._id, 'password_reset', code); }
+  async resetPassword(emailInput: string, code: string, password: string) { const user = await User.findOne({ email: normalizeEmail(emailInput) }); if (!user) throw new AppError(400, 'Invalid or expired code', 'INVALID_CODE'); await this.codes.verify(user._id, 'password_reset', code); user.passwordHash = await hashPassword(password); await user.save(); await this.tokens.revokeAll(user._id); }
+}
