@@ -7,9 +7,9 @@ const schema = z.object({
   MONGODB_SERVER_SELECTION_TIMEOUT_MS: z.coerce.number().int().positive().default(5_000),
   MONGODB_URI: z.string().min(1).default("mongodb://127.0.0.1:27017/internstack"),
   CLIENT_URL: z.string().url().default("http://localhost:5173"),
-  VERIFY_EMAIL_URL: z.string().url().default("http://localhost:5173/verify-email"),
-  RESET_PASSWORD_URL: z.string().url().default("http://localhost:5173/reset-password"),
-  SUPPORT_URL: z.string().url().default("http://localhost:5173/contact"),
+  VERIFY_EMAIL_URL: z.string().url().optional(),
+  RESET_PASSWORD_URL: z.string().url().optional(),
+  SUPPORT_URL: z.string().url().optional(),
   APP_TIME_ZONE: z.string().default("Africa/Lagos"),
   ACCESS_TOKEN_SECRET: z.string().min(16).optional(),
   ACCESS_TOKEN_TTL: z.string().default("15m"),
@@ -62,8 +62,14 @@ if (parsed.data.NODE_ENV === "production") {
   }
 }
 
+const clientUrl = new URL(parsed.data.CLIENT_URL);
+const frontendUrl = (route: string) => new URL(route, clientUrl).toString();
+
 export const config = {
   ...parsed.data,
+  VERIFY_EMAIL_URL: parsed.data.VERIFY_EMAIL_URL ?? frontendUrl("/verify-email"),
+  RESET_PASSWORD_URL: parsed.data.RESET_PASSWORD_URL ?? frontendUrl("/reset-password"),
+  SUPPORT_URL: parsed.data.SUPPORT_URL ?? frontendUrl("/contact"),
   ACCESS_TOKEN_SECRET: parsed.data.ACCESS_TOKEN_SECRET ?? "development-only-change-this-secret",
   COOKIE_SECURE: parsed.data.COOKIE_SECURE === "true",
   LOG_TO_DATABASE: parsed.data.LOG_TO_DATABASE === "true",
