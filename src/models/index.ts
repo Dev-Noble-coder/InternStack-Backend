@@ -37,17 +37,20 @@ const AuthCodeSchema = new Schema(
       enum: ["email_verification", "password_reset"],
       required: true,
     },
-    expiresAt: { type: Date, required: true, index: true },
+    expiresAt: { type: Date, required: true },
     attempts: { type: Number, default: 0 },
     usedAt: Date,
   },
   opts,
 );
+AuthCodeSchema.index({ userId: 1, purpose: 1, createdAt: -1 });
+AuthCodeSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+
 const SessionSchema = new Schema(
   {
     userId: { type: Types.ObjectId, ref: "User", required: true, index: true },
     refreshTokenHash: { type: String, required: true, unique: true },
-    expiresAt: { type: Date, required: true, index: true },
+    expiresAt: { type: Date, required: true },
     lastUsedAt: Date,
     revokedAt: Date,
     replacedBy: { type: Types.ObjectId, ref: "Session" },
@@ -55,6 +58,9 @@ const SessionSchema = new Schema(
   },
   opts,
 );
+SessionSchema.index({ userId: 1, revokedAt: 1 });
+SessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+
 export const User = model("User", UserSchema);
 export const AuthCode = model("AuthCode", AuthCodeSchema);
 export const Session = model("Session", SessionSchema);

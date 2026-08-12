@@ -163,6 +163,7 @@ export class BrevoApiEmailService implements EmailService {
         "api-key": config.EMAIL_API_KEY!,
         "content-type": "application/json",
       },
+      signal: AbortSignal.timeout(config.EMAIL_REQUEST_TIMEOUT_MS),
       body: JSON.stringify({
         sender: {
           email: config.EMAIL_FROM,

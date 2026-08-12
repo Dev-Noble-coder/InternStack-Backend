@@ -1,4 +1,5 @@
 import { Log, LogLevel } from "../models/log";
+import { config } from "../config";
 
 export type LogRequest = {
   method?: string;
@@ -45,16 +46,11 @@ export const logger = {
       },
     };
 
-    const output = input.error ?? input.message;
-    if (input.level === "error") {
-      console.error(input.message, output);
-    } else if (input.level === "warn") {
-      console.warn(input.message, output);
-    } else {
-      console.info(input.message, output);
-    }
+    if (input.level === "error") console.error(input.message, input.error ?? "");
+    else if (input.level === "warn") console.warn(input.message, input.error ?? "");
+    else console.info(input.message);
 
-    if (Log.db.readyState !== 1) {
+    if (!config.LOG_TO_DATABASE || input.level === "info" || Log.db.readyState !== 1) {
       return;
     }
 
