@@ -6,7 +6,11 @@ const schema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   PORT: z.coerce.number().int().positive().default(4000),
-  MONGODB_SERVER_SELECTION_TIMEOUT_MS: z.coerce.number().int().positive().default(5_000),
+  MONGODB_SERVER_SELECTION_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(5_000),
   MONGODB_URI: z
     .string()
     .min(1)
@@ -45,11 +49,18 @@ const schema = z.object({
     .int()
     .nonnegative()
     .default(60),
+  EMAIL_API_KEY: z.string().optional(),
+  EMAIL_API_URL: z
+    .string()
+    .url()
+    .default("https://api.brevo.com/v3/smtp/email"),
+  EMAIL_FROM_NAME: z.string().default("InternStack"),
   EMAIL_HOST: z.string().default("smtp-relay.brevo.com"),
   EMAIL_PORT: z.coerce.number().positive().default(587),
   EMAIL_USER: z.string().optional(),
   EMAIL_PASSWORD: z.string().optional(),
-  EMAIL_FROM: z.string().email().default("no-reply@example.com"),
+  EMAIL_FROM: z.string().email().default("no-reply@internstack.com.ng"),
+  EMAIL_LOGO_URL: z.string().url().optional(),
   GLOBAL_RATE_LIMIT: z.coerce.number().int().positive().default(100),
   GLOBAL_RATE_LIMIT_WINDOW_MS: z.coerce
     .number()

@@ -12,7 +12,9 @@ import { createAuthRouter } from "./routes/authRoutes";
 import { errorHandler } from "./middleware/errorHandler";
 import { globalLimiter, rateLimit } from "./middleware/auth";
 import { AppError } from "./errors";
-dns.setServers(['8.8.8.8', '1.1.1.1']);
+import { requestLogger } from "./logging/requestLogger";
+import { createLogRouter } from "./routes/logRoutes";
+dns.setServers(["8.8.8.8", "1.1.1.1"]);
 export function createApp(emailService: EmailService = createEmailService()) {
   const app = express();
   const authService = new AuthService(
@@ -25,6 +27,7 @@ export function createApp(emailService: EmailService = createEmailService()) {
   app.use(cors({ origin: config.CLIENT_URL, credentials: true }));
   app.use(express.json({ limit: "32kb" }));
   app.use(cookieParser());
+  app.use(requestLogger);
   app.use(
     rateLimit(
       globalLimiter,
@@ -35,6 +38,7 @@ export function createApp(emailService: EmailService = createEmailService()) {
   );
   app.get("/health", (_request, response) => response.json({ status: "ok" }));
   app.use("/api/auth", createAuthRouter(controller, globalLimiter));
+  app.use("/api/logs", createLogRouter());
   app.use((_request, _response, next) =>
     next(new AppError(404, "Route not found", "NOT_FOUND")),
   );

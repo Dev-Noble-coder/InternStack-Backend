@@ -110,7 +110,97 @@ export class MemoryEmailService implements EmailService {
   }
 }
 
-export class BrevoEmailService implements EmailService {
+const documentForInput = (
+  input:
+    | VerificationEmailInput
+    | WelcomeEmailInput
+    | PasswordResetEmailInput
+    | PasswordChangedEmailInput,
+): EmailDocument => {
+  if ("verificationCode" in input) {
+    return verificationEmail({
+      firstName: input.firstName,
+      verificationCode: input.verificationCode,
+      verificationUrl: input.verificationUrl,
+      expirationMinutes: config.OTP_EXPIRATION_MINUTES,
+    });
+  }
+  if ("resetCode" in input) {
+    return passwordResetEmail({
+      firstName: input.firstName,
+      resetCode: input.resetCode,
+      resetPasswordUrl: input.resetPasswordUrl,
+      expirationMinutes: config.OTP_EXPIRATION_MINUTES,
+    });
+  }
+  if ("changedAt" in input) {
+    return passwordChangedEmail(input);
+  }
+  return welcomeEmail(input);
+};
+
+const recipientName = (
+  input:
+    | VerificationEmailInput
+    | WelcomeEmailInput
+    | PasswordResetEmailInput
+    | PasswordChangedEmailInput,
+): string => input.firstName;
+
+export class BrevoApiEmailService implements EmailService {
+  private async send(
+    input:
+      | VerificationEmailInput
+      | WelcomeEmailInput
+      | PasswordResetEmailInput
+      | PasswordChangedEmailInput,
+  ): Promise<void> {
+    const document = documentForInput(input);
+    const response = await fetch(config.EMAIL_API_URL, {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        "api-key": config.EMAIL_API_KEY!,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        sender: {
+          email: config.EMAIL_FROM,
+          name: config.EMAIL_FROM_NAME,
+        },
+        to: [{ email: input.to, name: recipientName(input) }],
+        subject: document.subject,
+        htmlContent: document.html,
+        textContent: document.text,
+      }),
+    });
+
+    if (!response.ok) {
+      const providerMessage = await response.text();
+      throw new Error(
+        `Brevo API email request failed with HTTP ${response.status}: ${providerMessage.slice(0, 300)}`,
+      );
+    }
+  }
+
+  sendVerificationEmail(input: VerificationEmailInput): Promise<void> {
+    return this.send(input);
+  }
+
+  sendWelcomeEmail(input: WelcomeEmailInput): Promise<void> {
+    return this.send(input);
+  }
+
+  sendPasswordResetEmail(input: PasswordResetEmailInput): Promise<void> {
+    return this.send(input);
+  }
+
+  sendPasswordChangedEmail(input: PasswordChangedEmailInput): Promise<void> {
+    return this.send(input);
+  }
+}
+
+export class BrevoSmtpEmailService implements EmailService {
   private readonly transport = nodemailer.createTransport({
     host: config.EMAIL_HOST,
     port: config.EMAIL_PORT,
@@ -132,39 +222,28 @@ export class BrevoEmailService implements EmailService {
   }
 
   sendVerificationEmail(input: VerificationEmailInput): Promise<void> {
-    return this.send(
-      input.to,
-      verificationEmail({
-        firstName: input.firstName,
-        verificationCode: input.verificationCode,
-        verificationUrl: input.verificationUrl,
-        expirationMinutes: config.OTP_EXPIRATION_MINUTES,
-      }),
-    );
+    return this.send(input.to, documentForInput(input));
   }
 
   sendWelcomeEmail(input: WelcomeEmailInput): Promise<void> {
-    return this.send(input.to, welcomeEmail(input));
+    return this.send(input.to, documentForInput(input));
   }
 
   sendPasswordResetEmail(input: PasswordResetEmailInput): Promise<void> {
-    return this.send(
-      input.to,
-      passwordResetEmail({
-        firstName: input.firstName,
-        resetCode: input.resetCode,
-        resetPasswordUrl: input.resetPasswordUrl,
-        expirationMinutes: config.OTP_EXPIRATION_MINUTES,
-      }),
-    );
+    return this.send(input.to, documentForInput(input));
   }
 
   sendPasswordChangedEmail(input: PasswordChangedEmailInput): Promise<void> {
-    return this.send(input.to, passwordChangedEmail(input));
+    return this.send(input.to, documentForInput(input));
   }
 }
 
-export const createEmailService = (): EmailService =>
-  config.EMAIL_USER && config.EMAIL_PASSWORD
-    ? new BrevoEmailService()
-    : new MemoryEmailService();
+export const createEmailService = (): EmailService => {
+  if (config.EMAIL_API_KEY) {
+    return new BrevoApiEmailService();
+  }
+  if (config.EMAIL_USER && config.EMAIL_PASSWORD) {
+    return new BrevoSmtpEmailService();
+  }
+  return new MemoryEmailService();
+};

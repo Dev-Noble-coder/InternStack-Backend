@@ -4,6 +4,10 @@ import { config } from "../config";
 import { AppError } from "../errors";
 import { hashSecret, randomCode } from "../utils";
 export class AuthCodeService {
+  async removeForUser(userId: any): Promise<void> {
+    await AuthCode.deleteMany({ userId });
+  }
+
   async issue(
     userId: any,
     purpose: "email_verification" | "password_reset",

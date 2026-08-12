@@ -1,4 +1,5 @@
 import { emailTokens } from "../styles/tokens";
+import { config } from "../../config";
 
 export type EmailDocument = {
   subject: string;
@@ -25,7 +26,7 @@ const stackMark = `
 
 export const brandLogo = (light = true): string => `
   <span style="font-family:${emailTokens.fontFamily};font-size:24px;line-height:28px;font-weight:700;letter-spacing:0;color:${light ? emailTokens.colors.white : emailTokens.colors.navy};">
-    ${stackMark}<span style="color:${emailTokens.colors.gold};">Intern</span><span style="color:${light ? emailTokens.colors.white : emailTokens.colors.navy};">Stack</span>
+    ${config.EMAIL_LOGO_URL ? `<img src="${escapeUrl(config.EMAIL_LOGO_URL)}" width="180" alt="InternStack" style="display:block;width:180px;max-width:100%;height:auto;border:0;">` : `${stackMark}<span style="color:${emailTokens.colors.gold};">Intern</span><span style="color:${light ? emailTokens.colors.white : emailTokens.colors.navy};">Stack</span>`}
   </span>`;
 
 export const preheader = (value: string): string => `

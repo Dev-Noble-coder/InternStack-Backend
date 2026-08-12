@@ -5,6 +5,7 @@ import { TokenService, accessToken } from "./tokens";
 import { AppError } from "../errors";
 import { config } from "../config";
 import { comparePassword, hashPassword, normalizeEmail } from "../utils";
+import { logger } from "../logging/logger";
 
 export class AuthService {
   constructor(
@@ -63,13 +64,26 @@ export class AuthService {
       passwordHash: await hashPassword(input.password),
       role: "student",
     });
-    const code = await this.codes.issue(user._id, "email_verification");
-    await this.email.sendVerificationEmail({
-      to: email,
-      firstName: user.firstName,
-      verificationCode: code,
-      verificationUrl: this.emailUrl(config.VERIFY_EMAIL_URL, email),
-    });
+    try {
+      const code = await this.codes.issue(user._id, "email_verification");
+      await this.email.sendVerificationEmail({
+        to: email,
+        firstName: user.firstName,
+        verificationCode: code,
+        verificationUrl: this.emailUrl(config.VERIFY_EMAIL_URL, email),
+      });
+    } catch (error) {
+      await this.codes.removeForUser(user._id);
+      await User.deleteOne({ _id: user._id });
+      logger.error("Verification email delivery failed", error, {
+        path: "/api/auth/register",
+      });
+      throw new AppError(
+        503,
+        "Registration could not send the verification email. Please try again.",
+        "EMAIL_DELIVERY_FAILED",
+      );
+    }
     return this.publicUser(user);
   }
 
@@ -80,6 +94,17 @@ export class AuthService {
     await this.codes.verify(user._id, "email_verification", code);
     user.emailVerified = true;
     await user.save();
+    try {
+      await this.email.sendWelcomeEmail({
+        to: user.email,
+        firstName: user.firstName,
+        appUrl: config.CLIENT_URL,
+      });
+    } catch (error) {
+      logger.error("Welcome email delivery failed", error, {
+        path: "/api/auth/verify-email",
+      });
+    }
     return this.publicUser(user);
   }
 
@@ -186,5 +211,12 @@ export class AuthService {
     user.passwordHash = await hashPassword(password);
     await user.save();
     await this.tokens.revokeAll(user._id);
+    await this.email.sendPasswordChangedEmail({
+      to: user.email,
+      firstName: user.firstName,
+      email: user.email,
+      changedAt: this.formatEmailDate(new Date()),
+      supportUrl: config.SUPPORT_URL,
+    });
   }
 }

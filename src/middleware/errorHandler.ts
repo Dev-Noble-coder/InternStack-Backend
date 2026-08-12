@@ -1,8 +1,10 @@
 import { NextFunction, Request, Response } from "express";
 import { AppError } from "../errors";
+import { logger } from "../logging/logger";
+
 export function errorHandler(
   error: unknown,
-  _request: Request,
+  request: Request,
   response: Response,
   _next: NextFunction,
 ): void {
@@ -10,7 +12,20 @@ export function errorHandler(
     error instanceof AppError
       ? error
       : new AppError(500, "Internal server error", "INTERNAL_ERROR");
-  if (appError.status >= 500) console.error(error);
+
+  logger.error(
+    `${request.method} ${request.originalUrl} failed`,
+    error,
+    {
+      method: request.method,
+      path: request.originalUrl,
+      statusCode: appError.status,
+      ip: request.ip,
+      userAgent: request.get("user-agent"),
+    },
+    { code: appError.code },
+  );
+
   response
     .status(appError.status)
     .json({ error: { code: appError.code, message: appError.message } });
