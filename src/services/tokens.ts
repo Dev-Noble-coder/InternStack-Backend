@@ -1,6 +1,66 @@
-import jwt from 'jsonwebtoken'; import { config } from '../config'; import { Session, Types } from '../models'; import { hashSecret, randomToken } from '../utils';
-export type Identity = { userId: string; role: 'student' | 'admin' };
-export const accessToken = (identity: Identity) => jwt.sign(identity, config.ACCESS_TOKEN_SECRET, { expiresIn: config.ACCESS_TOKEN_TTL as jwt.SignOptions['expiresIn'] });
-export const verifyAccessToken = (token: string) => jwt.verify(token, config.ACCESS_TOKEN_SECRET) as Identity;
-export class TokenService { async createSession(userId: Types.ObjectId, metadata?: object) { const raw = randomToken(); const expiresAt = new Date(Date.now() + parseDuration(config.REFRESH_TOKEN_TTL)); const session = await Session.create({ userId, refreshTokenHash: hashSecret(raw), expiresAt, metadata }); return { raw, session }; } async rotate(raw: string) { const old = await Session.findOne({ refreshTokenHash: hashSecret(raw) }); if (!old) return { kind: 'missing' as const }; if (old.revokedAt || old.expiresAt.getTime() <= Date.now()) { await Session.updateMany({ userId: old.userId, revokedAt: { $exists: false } }, { $set: { revokedAt: new Date() } }); return { kind: 'reuse' as const }; } const next = await this.createSession(old.userId, old.metadata as object); old.revokedAt = new Date(); old.lastUsedAt = new Date(); old.replacedBy = next.session._id; await old.save(); return { kind: 'rotated' as const, ...next }; } async revoke(raw: string) { await Session.updateOne({ refreshTokenHash: hashSecret(raw), revokedAt: { $exists: false } }, { $set: { revokedAt: new Date() } }); } async revokeAll(userId: Types.ObjectId) { await Session.updateMany({ userId, revokedAt: { $exists: false } }, { $set: { revokedAt: new Date() } }); } }
-const parseDuration = (value: string) => { const match = value.match(/^(\d+)([smhd])$/); if (!match) return 30 * 86400000; const n = Number(match[1]); return n * ({ s: 1000, m: 60000, h: 3600000, d: 86400000 }[match[2] as 's' | 'm' | 'h' | 'd']); };
+import crypto from "crypto";
+import jwt from "jsonwebtoken";
+import { config } from "../config";
+import { Session } from "../models";
+import { Types } from "mongoose";
+
+export type Identity = { userId: string; role: "student" | "admin" };
+export const accessToken = (identity: Identity): string =>
+  jwt.sign(identity, config.ACCESS_TOKEN_SECRET, {
+    expiresIn: config.ACCESS_TOKEN_TTL as jwt.SignOptions["expiresIn"],
+  });
+export const verifyAccessToken = (token: string): Identity =>
+  jwt.verify(token, config.ACCESS_TOKEN_SECRET) as Identity;
+const hash = (value: string) =>
+  crypto.createHash("sha256").update(value).digest("hex");
+const randomToken = () => crypto.randomBytes(48).toString("base64url");
+const durationMs = (value: string): number => {
+  const match = /^(\d+)([smhd])$/.exec(value);
+  if (!match) return 30 * 86400000;
+  const units: Record<string, number> = {
+    s: 1000,
+    m: 60000,
+    h: 3600000,
+    d: 86400000,
+  };
+  return Number(match[1]) * units[match[2]];
+};
+
+export class TokenService {
+  async createSession(userId: any, metadata?: object) {
+    const raw = randomToken();
+    const session = await Session.create({
+      userId,
+      refreshTokenHash: hash(raw),
+      expiresAt: new Date(Date.now() + durationMs(config.REFRESH_TOKEN_TTL)),
+      metadata,
+    });
+    return { raw, session };
+  }
+  async rotate(raw: string) {
+    const old = await Session.findOne({ refreshTokenHash: hash(raw) });
+    if (!old) return { kind: "missing" as const };
+    if (old.revokedAt || old.expiresAt.getTime() <= Date.now()) {
+      await this.revokeAll(old.userId);
+      return { kind: "reuse" as const };
+    }
+    const next = await this.createSession(old.userId, old.metadata as object);
+    old.revokedAt = new Date();
+    old.lastUsedAt = new Date();
+    old.replacedBy = next.session._id as any;
+    await old.save();
+    return { kind: "rotated" as const, ...next };
+  }
+  async revoke(raw: string) {
+    await Session.updateOne(
+      { refreshTokenHash: hash(raw), revokedAt: { $exists: false } },
+      { $set: { revokedAt: new Date() } },
+    );
+  }
+  async revokeAll(userId: any) {
+    await Session.updateMany(
+      { userId, revokedAt: { $exists: false } },
+      { $set: { revokedAt: new Date() } },
+    );
+  }
+}
