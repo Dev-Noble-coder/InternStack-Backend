@@ -37,7 +37,7 @@ const schema = z.object({
   EMAIL_PASSWORD: z.string().optional(),
   EMAIL_FROM: z.string().email().default("no-reply@internstack.com.ng"),
 
-  EMAIL_LOGO_URL: z.string().url().default("https://internstack-backend.onrender.com/logo.png"),
+  EMAIL_LOGO_URL: z.string().url().default("https://internstack-backend.onrender.com/logoo.png"),
   GLOBAL_RATE_LIMIT: z.coerce.number().int().positive().default(100),
   GLOBAL_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   REGISTER_RATE_LIMIT: z.coerce.number().int().positive().default(5),
