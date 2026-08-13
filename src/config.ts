@@ -69,7 +69,7 @@ export const config = {
   ...parsed.data,
   VERIFY_EMAIL_URL: parsed.data.VERIFY_EMAIL_URL ?? frontendUrl("/verify-email"),
   RESET_PASSWORD_URL: parsed.data.RESET_PASSWORD_URL ?? frontendUrl("/reset-password"),
-  SUPPORT_URL: parsed.data.SUPPORT_URL ?? frontendUrl("/contact"),
+  SUPPORT_URL: parsed.data.SUPPORT_URL ?? frontendUrl("/contact-us"),
   ACCESS_TOKEN_SECRET: parsed.data.ACCESS_TOKEN_SECRET ?? "development-only-change-this-secret",
   COOKIE_SECURE: parsed.data.COOKIE_SECURE === "true",
   LOG_TO_DATABASE: parsed.data.LOG_TO_DATABASE === "true",

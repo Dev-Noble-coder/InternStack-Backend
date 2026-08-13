@@ -1,6 +1,5 @@
 import { emailTokens } from "../styles/tokens";
 import { config } from "../../config";
-
 export type EmailDocument = {
   subject: string;
   html: string;
@@ -17,18 +16,11 @@ export const escapeHtml = (value: string): string =>
 
 export const escapeUrl = (value: string): string => escapeHtml(value);
 
-const stackMark = `
-  <span style="display:inline-block;width:24px;height:20px;vertical-align:middle;margin-right:8px;">
-    <span style="display:block;width:18px;height:5px;border:3px solid ${emailTokens.colors.gold};transform:skewY(-24deg);margin:0 0 2px 2px;"></span>
-    <span style="display:block;width:18px;height:5px;border:3px solid ${emailTokens.colors.gold};transform:skewY(-24deg);margin:0 0 2px 2px;"></span>
-    <span style="display:block;width:18px;height:5px;border:3px solid ${emailTokens.colors.gold};transform:skewY(-24deg);margin:0 0 0 2px;"></span>
-  </span>`;
-
+const stackMark = `<img src="${escapeUrl(config.EMAIL_LOGO_URL)}" width="44" height="44" alt="" style="display:block;width:44px;height:44px;border:0;">`;
 export const brandLogo = (light = true): string => `
-  <span style="font-family:${emailTokens.fontFamily};font-size:24px;line-height:28px;font-weight:700;letter-spacing:0;color:${light ? emailTokens.colors.white : emailTokens.colors.navy};">
-    ${config.EMAIL_LOGO_URL ? `<img src="${escapeUrl(config.EMAIL_LOGO_URL)}" width="180" alt="InternStack" style="display:block;width:180px;max-width:100%;height:auto;border:0;">` : `${stackMark}<span style="color:${emailTokens.colors.gold};">Intern</span><span style="color:${light ? emailTokens.colors.white : emailTokens.colors.navy};">Stack</span>`}
+  <span style="display:inline-block;vertical-align:middle;font-family:${emailTokens.fontFamily};font-size:32px;line-height:36px;font-weight:700;letter-spacing:-1.5px;color:${light ? emailTokens.colors.brandStack : emailTokens.colors.navy};">
+    <span style="display:inline-block;vertical-align:middle;width:44px;height:44px;margin-right:8px;">${stackMark}</span><span style="vertical-align:middle;color:${emailTokens.colors.brandIntern};">Intern</span><span style="vertical-align:middle;color:${light ? emailTokens.colors.brandStack : emailTokens.colors.navy};">Stack</span>
   </span>`;
-
 export const preheader = (value: string): string => `
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${escapeHtml(value)}</div>`;
 
@@ -49,7 +41,7 @@ export const emailFooter = (): string => `
             <span style="color:#cbd2e7;">Build your career, layer by layer.</span>
           </td>
           <td style="font-family:${emailTokens.fontFamily};font-size:13px;line-height:20px;color:#cbd2e7;text-align:right;vertical-align:top;padding-bottom:18px;">
-            Need help?<br><span style="color:${emailTokens.colors.gold};font-weight:700;">Contact support</span>
+            Need help?<br><a href="${escapeUrl(config.SUPPORT_URL)}" style="color:${emailTokens.colors.gold};font-weight:700;text-decoration:none;">Contact support</a>
           </td>
         </tr>
         <tr>
