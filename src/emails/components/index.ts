@@ -18,9 +18,14 @@ export const escapeUrl = (value: string): string => escapeHtml(value);
 
 const stackMark = `<img src="${escapeUrl(config.EMAIL_LOGO_URL)}" width="44" height="44" alt="" style="display:block;width:44px;height:44px;border:0;">`;
 export const brandLogo = (light = true): string => `
-  <span style="display:inline-block;vertical-align:middle;font-family:${emailTokens.fontFamily};font-size:32px;line-height:36px;font-weight:700;letter-spacing:-1.5px;color:${light ? emailTokens.colors.brandStack : emailTokens.colors.navy};">
-    <span style="display:inline-block;vertical-align:middle;width:44px;height:44px;margin-right:8px;">${stackMark}</span><span style="vertical-align:middle;color:${emailTokens.colors.brandIntern};">Intern</span><span style="vertical-align:middle;color:${light ? emailTokens.colors.brandStack : emailTokens.colors.navy};">Stack</span>
-  </span>`;
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
+    <tr>
+      <td valign="middle" width="44" style="width:44px;height:44px;padding:0 8px 0 0;vertical-align:middle;">${stackMark}</td>
+      <td valign="middle" style="height:44px;padding:0;vertical-align:middle;font-family:${emailTokens.fontFamily};font-size:32px;line-height:36px;font-weight:700;letter-spacing:-1.5px;white-space:nowrap;">
+        <span style="color:${emailTokens.colors.brandIntern};">Intern</span><span style="color:${light ? emailTokens.colors.brandStack : emailTokens.colors.navy};">Stack</span>
+      </td>
+    </tr>
+  </table>`;
 export const preheader = (value: string): string => `
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${escapeHtml(value)}</div>`;
 
@@ -36,11 +41,11 @@ export const emailFooter = (): string => `
     <td style="background-color:${emailTokens.colors.navyDark};padding:28px 32px;color:${emailTokens.colors.white};">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
         <tr>
-          <td style="font-family:${emailTokens.fontFamily};font-size:13px;line-height:20px;color:${emailTokens.colors.white};vertical-align:top;padding-bottom:18px;">
+          <td class="footer-cell" style="font-family:${emailTokens.fontFamily};font-size:13px;line-height:20px;color:${emailTokens.colors.white};vertical-align:top;padding-bottom:18px;">
             ${brandLogo(true)}<br>
             <span style="color:#cbd2e7;">Build your career, layer by layer.</span>
           </td>
-          <td style="font-family:${emailTokens.fontFamily};font-size:13px;line-height:20px;color:#cbd2e7;text-align:right;vertical-align:top;padding-bottom:18px;">
+          <td class="footer-cell" style="font-family:${emailTokens.fontFamily};font-size:13px;line-height:20px;color:#cbd2e7;text-align:right;vertical-align:top;padding-bottom:18px;">
             Need help?<br><a href="${escapeUrl(config.SUPPORT_URL)}" style="color:${emailTokens.colors.gold};font-weight:700;text-decoration:none;">Contact support</a>
           </td>
         </tr>
