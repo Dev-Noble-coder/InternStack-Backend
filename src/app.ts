@@ -25,8 +25,8 @@ export function createApp(emailService: EmailService = createEmailService()) {
   const app = express();
   if (config.NODE_ENV === "production") app.set("trust proxy", 1);
   app.use(helmet());
-  app.get("/logo.png", (_request, response) => {
-    response.sendFile(path.join(process.cwd(), "logo.png"));
+  app.get("/logoo.png", (_request, response) => {
+    response.sendFile(path.join(process.cwd(), "logoo.png"));
   });
   app.use(cors({ origin: config.CLIENT_URL, credentials: true }));
   app.use(express.json({ limit: "32kb" }));
