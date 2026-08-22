@@ -28,7 +28,7 @@ export function createApp(emailService: EmailService = createEmailService()) {
   app.get("/logoo.png", (_request, response) => {
     response.sendFile(path.join(process.cwd(), "logoo.png"));
   });
-  app.use(cors({ origin: config.CLIENT_URL, credentials: true }));
+  app.use(cors({ origin: config.CLIENT_URLS, credentials: true }));
   app.use(express.json({ limit: "32kb" }));
   app.use(cookieParser());
   app.use(requestTimeout);

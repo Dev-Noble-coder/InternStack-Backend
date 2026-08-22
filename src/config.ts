@@ -6,7 +6,7 @@ const schema = z.object({
   PORT: z.coerce.number().int().positive().default(4000),
   MONGODB_SERVER_SELECTION_TIMEOUT_MS: z.coerce.number().int().positive().default(5_000),
   MONGODB_URI: z.string().min(1).default("mongodb://127.0.0.1:27017/internstack"),
-  CLIENT_URL: z.string().url().default("http://localhost:5173"),
+  CLIENT_URL: z.string().default("http://localhost:3000"),
   VERIFY_EMAIL_URL: z.string().url().optional(),
   RESET_PASSWORD_URL: z.string().url().optional(),
   SUPPORT_URL: z.string().url().optional(),
@@ -62,11 +62,18 @@ if (parsed.data.NODE_ENV === "production") {
   }
 }
 
-const clientUrl = new URL(parsed.data.CLIENT_URL);
+const clientUrls = parsed.data.CLIENT_URL.split(",").map((url) => url.trim()).filter(Boolean);
+if (clientUrls.length === 0 || clientUrls.some((url) => !z.string().url().safeParse(url).success)) {
+  throw new Error("CLIENT_URL must contain one or more valid comma-separated URLs");
+}
+
+const clientUrl = new URL(clientUrls[0]);
 const frontendUrl = (route: string) => new URL(route, clientUrl).toString();
 
 export const config = {
   ...parsed.data,
+  CLIENT_URL: clientUrls[0],
+  CLIENT_URLS: clientUrls,
   VERIFY_EMAIL_URL: parsed.data.VERIFY_EMAIL_URL ?? frontendUrl("/verify-email"),
   RESET_PASSWORD_URL: parsed.data.RESET_PASSWORD_URL ?? frontendUrl("/reset-password"),
   SUPPORT_URL: parsed.data.SUPPORT_URL ?? frontendUrl("/contact-us"),

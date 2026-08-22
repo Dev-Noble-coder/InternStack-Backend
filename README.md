@@ -97,7 +97,7 @@ Production settings for a separately hosted HTTPS frontend:
 
 ```env
 NODE_ENV=production
-CLIENT_URL=https://your-frontend-domain.com
+CLIENT_URL=https://your-frontend-domain.com,https://www.your-frontend-domain.com
 COOKIE_SECURE=true
 COOKIE_SAME_SITE=none
 ACCESS_TOKEN_SECRET=<long-random-secret>
