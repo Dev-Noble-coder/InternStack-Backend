@@ -148,19 +148,6 @@ export class AuthController {
     }
   };
 
-  verifyPasswordReset = async (
-    request: Request,
-    response: Response,
-    next: NextFunction,
-  ) => {
-    try {
-      await this.authService.verifyReset(request.body.email, request.body.code);
-      response.json({ message: "Code verified" });
-    } catch (error) {
-      next(error);
-    }
-  };
-
   resetPassword = async (
     request: Request,
     response: Response,
@@ -173,6 +160,25 @@ export class AuthController {
         request.body.password,
       );
       response.json({ message: "Password reset successfully" });
+    } catch (error) {
+      next(error);
+    }
+  };
+  acceptInvitation = async (
+    request: Request,
+    response: Response,
+    next: NextFunction,
+  ) => {
+    try {
+      const result = await this.authService.acceptInvitation(
+        request.body.token,
+        request.body.password,
+        request.body.firstName,
+        request.body.lastName,
+      );
+      response
+        .status(201)
+        .json({ success: true, data: { email: result.email } });
     } catch (error) {
       next(error);
     }

@@ -21,7 +21,7 @@ export const brandLogo = (light = true): string => `
   <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
     <tr>
       <td valign="middle" width="44" style="width:44px;height:44px;padding:0 8px 0 0;vertical-align:middle;">${stackMark}</td>
-      <td valign="middle" style="height:44px;padding:0;vertical-align:middle;font-family:${emailTokens.fontFamily};font-size:32px;line-height:36px;font-weight:700;letter-spacing:-1.5px;white-space:nowrap;">
+      <td valign="middle" style="height:44px;padding:0;vertical-align:middle;font-family:${emailTokens.wordmarkFontFamily};font-size:32px;line-height:36px;font-weight:${emailTokens.wordmarkFontWeight};letter-spacing:-1.5px;white-space:nowrap;">
         <span style="color:${emailTokens.colors.brandIntern};">Intern</span><span style="color:${light ? emailTokens.colors.brandStack : emailTokens.colors.navy};">Stack</span>
       </td>
     </tr>
@@ -109,9 +109,21 @@ export const paragraph = (value: string): string => `
 
 export const ctaButton = (label: string, url: string): string => `
   <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:28px 0 8px;">
-    <tr><td bgcolor="${emailTokens.colors.gold}" style="border:1px solid ${emailTokens.colors.goldDark};box-shadow:4px 4px 0 ${emailTokens.colors.navyDark};">
-      <a class="email-button" href="${escapeUrl(url)}" style="display:inline-block;padding:14px 26px;font-family:${emailTokens.fontFamily};font-size:14px;line-height:18px;font-weight:700;letter-spacing:.3px;color:${emailTokens.colors.navyDark};text-decoration:none;">${escapeHtml(label)}</a>
-    </td></tr>
+    <tr>
+      <td>
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td bgcolor="${emailTokens.colors.gold}" style="border:1px solid ${emailTokens.colors.goldDark};">
+              <a class="email-button" href="${escapeUrl(url)}" style="display:inline-block;padding:14px 26px;font-family:${emailTokens.fontFamily};font-size:14px;line-height:18px;font-weight:700;letter-spacing:.3px;color:${emailTokens.colors.navyDark};text-decoration:none;">${escapeHtml(label)}</a>
+            </td>
+            <td width="4" bgcolor="${emailTokens.colors.navyDark}" style="font-size:0;line-height:0;">&nbsp;</td>
+          </tr>
+          <tr>
+            <td colspan="2" height="4" bgcolor="${emailTokens.colors.navyDark}" style="font-size:0;line-height:0;">&nbsp;</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
   </table>`;
 
 export const codeBlock = (

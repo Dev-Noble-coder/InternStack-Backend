@@ -19,6 +19,13 @@ import { createLogRouter } from "./routes/logRoutes";
 import { csrfProtection, issueCsrfToken } from "./middleware/csrf";
 import { requestTimeout } from "./middleware/requestTimeout";
 import mongoose from "mongoose";
+import { createStudentRouter } from "./routes/studentRoutes";
+import { createListingRouter } from "./routes/listingRoutes";
+import { createApplicationRouter } from "./routes/applicationRoutes";
+import { createNotificationRouter } from "./routes/notificationRoutes";
+import { createAdminRouter } from "./routes/adminRoutes";
+import { createInvitationRouter } from "./routes/invitationRoutes";
+import { createSubmissionRouter } from "./routes/submissionRoutes";
 dns.setServers(["8.8.8.8", "1.1.1.1"]);
 
 export function createApp(emailService: EmailService = createEmailService()) {
@@ -35,17 +42,39 @@ export function createApp(emailService: EmailService = createEmailService()) {
   app.get("/api/auth/csrf", issueCsrfToken);
   app.use(csrfProtection);
   app.use(requestLogger);
-  app.use(rateLimit(globalLimiter, (request) => `global:${request.ip}`, config.GLOBAL_RATE_LIMIT, config.GLOBAL_RATE_LIMIT_WINDOW_MS));
+  app.use(
+    rateLimit(
+      globalLimiter,
+      (request) => `global:${request.ip}`,
+      config.GLOBAL_RATE_LIMIT,
+      config.GLOBAL_RATE_LIMIT_WINDOW_MS,
+    ),
+  );
   app.get("/health", (_request, response) => response.json({ status: "ok" }));
   app.get("/ready", (_request, response) => {
     const ready = mongoose.connection.readyState === 1;
-    response.status(ready ? 200 : 503).json({ status: ready ? "ready" : "not_ready" });
+    response
+      .status(ready ? 200 : 503)
+      .json({ status: ready ? "ready" : "not_ready" });
   });
-  const authService = new AuthService(new AuthCodeService(), new TokenService(), emailService);
+  const authService = new AuthService(
+    new AuthCodeService(),
+    new TokenService(),
+    emailService,
+  );
   const controller = new AuthController(authService);
   app.use("/api/auth", createAuthRouter(controller, globalLimiter));
   app.use("/api/logs", createLogRouter());
-  app.use((_request, _response, next) => next(new AppError(404, "Route not found", "NOT_FOUND")));
+  app.use("/api/student", createStudentRouter());
+  app.use("/api/listings", createListingRouter());
+  app.use("/api/applications", createApplicationRouter());
+  app.use("/api/submissions", createSubmissionRouter());
+  app.use("/api/notifications", createNotificationRouter());
+  app.use("/api/admin", createAdminRouter());
+  app.use("/api/admin/invitations", createInvitationRouter());
+  app.use((_request, _response, next) =>
+    next(new AppError(404, "Route not found", "NOT_FOUND")),
+  );
   app.use(errorHandler);
   return app;
 }

@@ -6,6 +6,14 @@ import {
   passwordResetEmail,
   verificationEmail,
   welcomeEmail,
+  applicationSubmittedEmail,
+  applicationReviewedEmail,
+  applicationAcceptedEmail,
+  applicationRejectedEmail,
+  placementConfirmedEmail,
+  adminInvitationEmail,
+  profileCvIssueEmail,
+  applicationWithdrawnEmail,
 } from "../emails";
 
 export type VerificationEmailInput = {
@@ -41,7 +49,29 @@ export interface EmailService {
   sendWelcomeEmail(input: WelcomeEmailInput): Promise<void>;
   sendPasswordResetEmail(input: PasswordResetEmailInput): Promise<void>;
   sendPasswordChangedEmail(input: PasswordChangedEmailInput): Promise<void>;
+  sendApplicationSubmittedEmail(input: NotificationEmailInput): Promise<void>;
+  sendApplicationReviewedEmail(input: NotificationEmailInput): Promise<void>;
+  sendApplicationAcceptedEmail(input: NotificationEmailInput): Promise<void>;
+  sendApplicationRejectedEmail(input: NotificationEmailInput): Promise<void>;
+  sendPlacementConfirmedEmail(
+    input: NotificationEmailInput & { startDate: string; endDate: string },
+  ): Promise<void>;
+  sendProfileCvIssueEmail(
+    input: NotificationEmailInput & { issue: string; type: string },
+  ): Promise<void>;
+  sendAdminInvitationEmail(input: {
+    to: string;
+    inviteUrl: string;
+    expiresInHours: number;
+  }): Promise<void>;
+  sendApplicationWithdrawnEmail(input: NotificationEmailInput): Promise<void>;
 }
+export type NotificationEmailInput = {
+  to: string;
+  firstName: string;
+  companyName?: string;
+  listingTitle?: string;
+};
 
 type SentEmail = {
   email: string;
@@ -107,6 +137,77 @@ export class MemoryEmailService implements EmailService {
     input: PasswordChangedEmailInput,
   ): Promise<void> {
     this.record(input.to, "password_changed", passwordChangedEmail(input));
+  }
+  private notification(input: any, document: EmailDocument) {
+    this.record(input.to, "notification", document);
+  }
+  async sendApplicationSubmittedEmail(input: NotificationEmailInput) {
+    this.notification(
+      input,
+      applicationSubmittedEmail(
+        input.firstName,
+        input.companyName!,
+        input.listingTitle!,
+      ),
+    );
+  }
+  async sendApplicationReviewedEmail(input: NotificationEmailInput) {
+    this.notification(
+      input,
+      applicationReviewedEmail(input.firstName, input.companyName!),
+    );
+  }
+  async sendApplicationAcceptedEmail(input: NotificationEmailInput) {
+    this.notification(
+      input,
+      applicationAcceptedEmail(input.firstName, input.companyName!),
+    );
+  }
+  async sendApplicationRejectedEmail(input: NotificationEmailInput) {
+    this.notification(
+      input,
+      applicationRejectedEmail(input.firstName, input.companyName!),
+    );
+  }
+  async sendPlacementConfirmedEmail(
+    input: NotificationEmailInput & { startDate: string; endDate: string },
+  ) {
+    this.notification(
+      input,
+      placementConfirmedEmail(
+        input.firstName,
+        input.companyName!,
+        input.startDate,
+        input.endDate,
+      ),
+    );
+  }
+  async sendProfileCvIssueEmail(
+    input: NotificationEmailInput & { issue: string; type: string },
+  ) {
+    this.notification(
+      input,
+      profileCvIssueEmail(input.firstName, input.issue, input.type),
+    );
+  }
+  async sendAdminInvitationEmail(input: {
+    to: string;
+    inviteUrl: string;
+    expiresInHours: number;
+  }) {
+    this.notification(
+      { to: input.to, firstName: "Administrator" },
+      adminInvitationEmail(input.inviteUrl, input.expiresInHours),
+    );
+  }
+  async sendApplicationWithdrawnEmail(input: NotificationEmailInput) {
+    this.notification(
+      input,
+      applicationWithdrawnEmail(
+        input.firstName,
+        input.listingTitle ?? "the listing",
+      ),
+    );
   }
 }
 
@@ -199,6 +300,96 @@ export class BrevoApiEmailService implements EmailService {
   sendPasswordChangedEmail(input: PasswordChangedEmailInput): Promise<void> {
     return this.send(input);
   }
+  sendApplicationSubmittedEmail(input: NotificationEmailInput) {
+    return this.sendDocument(
+      input.to,
+      applicationSubmittedEmail(
+        input.firstName,
+        input.companyName!,
+        input.listingTitle!,
+      ),
+    );
+  }
+  sendApplicationReviewedEmail(input: NotificationEmailInput) {
+    return this.sendDocument(
+      input.to,
+      applicationReviewedEmail(input.firstName, input.companyName!),
+    );
+  }
+  sendApplicationAcceptedEmail(input: NotificationEmailInput) {
+    return this.sendDocument(
+      input.to,
+      applicationAcceptedEmail(input.firstName, input.companyName!),
+    );
+  }
+  sendApplicationRejectedEmail(input: NotificationEmailInput) {
+    return this.sendDocument(
+      input.to,
+      applicationRejectedEmail(input.firstName, input.companyName!),
+    );
+  }
+  sendPlacementConfirmedEmail(
+    input: NotificationEmailInput & { startDate: string; endDate: string },
+  ) {
+    return this.sendDocument(
+      input.to,
+      placementConfirmedEmail(
+        input.firstName,
+        input.companyName!,
+        input.startDate,
+        input.endDate,
+      ),
+    );
+  }
+  sendProfileCvIssueEmail(
+    input: NotificationEmailInput & { issue: string; type: string },
+  ) {
+    return this.sendDocument(
+      input.to,
+      profileCvIssueEmail(input.firstName, input.issue, input.type),
+    );
+  }
+  sendAdminInvitationEmail(input: {
+    to: string;
+    inviteUrl: string;
+    expiresInHours: number;
+  }) {
+    return this.sendDocument(
+      input.to,
+      adminInvitationEmail(input.inviteUrl, input.expiresInHours),
+    );
+  }
+  sendApplicationWithdrawnEmail(input: NotificationEmailInput) {
+    return this.sendDocument(
+      input.to,
+      applicationWithdrawnEmail(
+        input.firstName,
+        input.listingTitle ?? "the listing",
+      ),
+    );
+  }
+  private async sendDocument(to: string, document: EmailDocument) {
+    const response = await fetch(config.EMAIL_API_URL, {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        "api-key": config.EMAIL_API_KEY!,
+        "content-type": "application/json",
+      },
+      signal: AbortSignal.timeout(config.EMAIL_REQUEST_TIMEOUT_MS),
+      body: JSON.stringify({
+        sender: { email: config.EMAIL_FROM, name: config.EMAIL_FROM_NAME },
+        to: [{ email: to }],
+        subject: document.subject,
+        htmlContent: document.html,
+        textContent: document.text,
+      }),
+    });
+    if (!response.ok)
+      throw new Error(
+        `Brevo API email request failed with HTTP ${response.status}`,
+      );
+  }
 }
 
 export class BrevoSmtpEmailService implements EmailService {
@@ -236,6 +427,77 @@ export class BrevoSmtpEmailService implements EmailService {
 
   sendPasswordChangedEmail(input: PasswordChangedEmailInput): Promise<void> {
     return this.send(input.to, documentForInput(input));
+  }
+  sendApplicationSubmittedEmail(input: NotificationEmailInput) {
+    return this.sendDocument(
+      input.to,
+      applicationSubmittedEmail(
+        input.firstName,
+        input.companyName!,
+        input.listingTitle!,
+      ),
+    );
+  }
+  sendApplicationReviewedEmail(input: NotificationEmailInput) {
+    return this.sendDocument(
+      input.to,
+      applicationReviewedEmail(input.firstName, input.companyName!),
+    );
+  }
+  sendApplicationAcceptedEmail(input: NotificationEmailInput) {
+    return this.sendDocument(
+      input.to,
+      applicationAcceptedEmail(input.firstName, input.companyName!),
+    );
+  }
+  sendApplicationRejectedEmail(input: NotificationEmailInput) {
+    return this.sendDocument(
+      input.to,
+      applicationRejectedEmail(input.firstName, input.companyName!),
+    );
+  }
+  sendPlacementConfirmedEmail(
+    input: NotificationEmailInput & { startDate: string; endDate: string },
+  ) {
+    return this.sendDocument(
+      input.to,
+      placementConfirmedEmail(
+        input.firstName,
+        input.companyName!,
+        input.startDate,
+        input.endDate,
+      ),
+    );
+  }
+  sendProfileCvIssueEmail(
+    input: NotificationEmailInput & { issue: string; type: string },
+  ) {
+    return this.sendDocument(
+      input.to,
+      profileCvIssueEmail(input.firstName, input.issue, input.type),
+    );
+  }
+  sendAdminInvitationEmail(input: {
+    to: string;
+    inviteUrl: string;
+    expiresInHours: number;
+  }) {
+    return this.sendDocument(
+      input.to,
+      adminInvitationEmail(input.inviteUrl, input.expiresInHours),
+    );
+  }
+  sendApplicationWithdrawnEmail(input: NotificationEmailInput) {
+    return this.sendDocument(
+      input.to,
+      applicationWithdrawnEmail(
+        input.firstName,
+        input.listingTitle ?? "the listing",
+      ),
+    );
+  }
+  private sendDocument(to: string, document: EmailDocument) {
+    return this.send(to, document);
   }
 }
 

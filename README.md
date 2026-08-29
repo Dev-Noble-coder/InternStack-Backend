@@ -1,488 +1,228 @@
-# InternStack Backend API
-
-Cookie-based Express API backed by MongoDB/Mongoose.
-
-## 1. API base URL
-
-Use one API base URL in the frontend:
-
-```js
-const API_URL = "https://internstack-backend.onrender.com";
-// Local: http://localhost:4000
-```
-
-Requests must go to `${API_URL}/...`. If the frontend is hosted separately, do not call `/api/auth/...` without the API domain or a configured development proxy.
-
-## 2. The frontend request rule
-
-There are two separate things to send:
-
-1. Authentication cookies: the browser manages these. Your code must use `credentials: "include"`.
-2. CSRF token: send this in the `X-CSRF-Token` header. It is not part of the JSON body.
-
-Use this wrapper for all API calls:
-
-```js
-let csrfToken = null;
-
-export async function initializeApi() {
-  const response = await fetch(`${API_URL}/api/auth/csrf`, {
-    method: "GET",
-    credentials: "include",
-  });
-
-  if (!response.ok) throw new Error("Could not initialize CSRF protection");
-  const data = await response.json();
-  csrfToken = data.csrfToken;
-}
-
-export async function apiFetch(path, options = {}) {
-  const method = (options.method || "GET").toUpperCase();
-  const headers = new Headers(options.headers || {});
-
-  if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
-    if (!csrfToken) await initializeApi();
-    headers.set("X-CSRF-Token", csrfToken);
-  }
-
-  return fetch(`${API_URL}${path}`, {
-    ...options,
-    method,
-    headers,
-    credentials: "include",
-  });
-}
-```
-
-Call this once when the app starts:
-
-```js
-await initializeApi();
-```
-
-For Axios:
-
-```js
-axios.defaults.baseURL = API_URL;
-axios.defaults.withCredentials = true;
-```
-
-### What CSRF means here
-
-The browser automatically sends authentication cookies, even when a request was triggered by another website. CSRF protection requires an additional proof that your frontend intentionally made the request:
-
-- `GET /api/auth/csrf` returns a token.
-- The server also sets that token in the readable `csrf_token` cookie.
-- The frontend sends the same token in the `X-CSRF-Token` header.
-- The server compares the cookie value with the header value.
-- If they do not match, the server returns `403 CSRF_INVALID`.
-
-Do not add `csrfToken` to registration, login, or other JSON payloads. It belongs only in the header.
-
-CSRF is required for every `POST`, `PUT`, `PATCH`, and `DELETE` request, including registration, login, verification, refresh, logout, and password reset. It is not required for `GET` requests such as `/health`, `/ready`, `/api/auth/csrf`, or `/api/auth/me`.
-
-If the server returns `403` with code `CSRF_INVALID`, call `initializeApi()` again and retry the request once.
-
-## 3. Cookies and separate frontend/backend domains
-
-After login or refresh, the API sets:
-
-- `access_token`: HTTP-only short-lived authentication cookie.
-- `refresh_token`: HTTP-only longer-lived session cookie.
-- `csrf_token`: readable CSRF cookie used with the `X-CSRF-Token` header.
-
-JavaScript cannot read the access or refresh cookies. This is intentional. The browser sends them automatically when `credentials: "include"` is present.
-
-Production settings for a separately hosted HTTPS frontend:
-
-```env
-NODE_ENV=production
-CLIENT_URL=https://your-frontend-domain.com,https://www.your-frontend-domain.com
-COOKIE_SECURE=true
-COOKIE_SAME_SITE=none
-ACCESS_TOKEN_SECRET=<long-random-secret>
-```
-
-Local settings:
-
-```env
-NODE_ENV=development
-CLIENT_URL=http://localhost:5173
-COOKIE_SECURE=false
-COOKIE_SAME_SITE=lax
-```
-
-Cookie settings do not change MongoDB data, password hashes, refresh-token hashes, IndexedDB, or encryption/key storage. Changing `ACCESS_TOKEN_SECRET` invalidates existing access tokens and users may need to log in again.
-
-## 4. Response and error format
-
-Successful responses are JSON. Errors use:
-
-```json
-{
-  "error": {
-    "code": "INVALID_CREDENTIALS",
-    "message": "Invalid email or password"
-  }
-}
-```
-
-Common error codes include `CSRF_INVALID`, `UNAUTHENTICATED`, `FORBIDDEN`, `RATE_LIMITED`, `INVALID_CODE`, `EMAIL_NOT_VERIFIED`, and `INTERNAL_ERROR`.
-
-## 5. Full authentication flow
-
-### Step 0: Check the server
-
-```http
-GET /health
-```
-
-Response `200`:
-
-```json
-{ "status": "ok" }
-```
-
-`/health` confirms that the process is running. `/ready` also checks MongoDB:
-
-```http
-GET /ready
-```
-
-Response when ready:
-
-```json
-{ "status": "ready" }
-```
-
-It returns `503` when MongoDB is unavailable.
-
-### Step 1: Initialize CSRF
-
-```http
-GET /api/auth/csrf
-```
-
-Use `credentials: "include"`.
-
-Response:
-
-```json
-{ "csrfToken": "random-token-value" }
-```
-
-Save `csrfToken` in memory. Do not put it in localStorage and do not put it in later JSON bodies.
-
-### Step 2: Register
-
-```http
-POST /api/auth/register
-Content-Type: application/json
-X-CSRF-Token: <csrfToken>
-```
-
-JSON body:
-
-```json
-{
-  "firstName": "Ada",
-  "lastName": "Lovelace",
-  "email": "ada@example.com",
-  "password": "a-strong-password"
-}
-```
-
-Rules:
-
-- `firstName` and `lastName`: 1–80 characters.
-- `email`: valid email; normalized to lowercase.
-- `password`: 8–128 characters.
-
-Successful response: HTTP `201`.
-
-```json
-{
-  "user": {
-    "id": "user-id",
-    "firstName": "Ada",
-    "lastName": "Lovelace",
-    "email": "ada@example.com",
-    "role": "student",
-    "status": "active",
-    "emailVerified": false,
-    "profilePicture": null,
-    "lastLoginAt": null,
-    "createdAt": "2026-08-12T19:00:00.000Z",
-    "updatedAt": "2026-08-12T19:00:00.000Z"
-  }
-}
-```
-
-Registration creates the account and sends a six-digit verification code. It does not log the user in.
-
-### Step 3: Verify email
-
-```http
-POST /api/auth/verify-email
-Content-Type: application/json
-X-CSRF-Token: <csrfToken>
-```
-
-JSON body:
-
-```json
-{
-  "email": "ada@example.com",
-  "code": "123456"
-}
-```
-
-The code must contain exactly six digits.
-
-Successful response: HTTP `200` with the same public user shape, but `emailVerified` is `true`.
-
-### Step 4: Resend verification code
-
-```http
-POST /api/auth/resend-verification
-Content-Type: application/json
-X-CSRF-Token: <csrfToken>
-```
-
-JSON body:
-
-```json
-{ "email": "ada@example.com" }
-```
-
-Successful response:
-
-```json
-{ "message": "If the account exists, a verification code was sent" }
-```
-
-The response intentionally does not reveal whether the email exists. Rate limits and a resend cooldown apply.
-
-### Step 5: Login
-
-```http
-POST /api/auth/login
-Content-Type: application/json
-X-CSRF-Token: <csrfToken>
-```
-
-JSON body:
-
-```json
-{
-  "email": "ada@example.com",
-  "password": "a-strong-password"
-}
-```
-
-Successful response: HTTP `200`.
-
-```json
-{
-  "user": {
-    "id": "user-id",
-    "firstName": "Ada",
-    "lastName": "Lovelace",
-    "email": "ada@example.com",
-    "role": "student",
-    "status": "active",
-    "emailVerified": true,
-    "profilePicture": null,
-    "lastLoginAt": "2026-08-12T19:10:00.000Z",
-    "createdAt": "2026-08-12T19:00:00.000Z",
-    "updatedAt": "2026-08-12T19:10:00.000Z"
-  }
-}
-```
-
-The response also sets the HTTP-only `access_token` and `refresh_token` cookies. The token values are not returned in JSON. Do not store tokens in localStorage or sessionStorage.
-
-### Step 6: Load the current user
-
-```http
-GET /api/auth/me
-```
-
-Use `credentials: "include"`.
-
-Successful response:
-
-```json
-{
-  "user": {
-    "id": "user-id",
-    "firstName": "Ada",
-    "lastName": "Lovelace",
-    "email": "ada@example.com",
-    "role": "student",
-    "status": "active",
-    "emailVerified": true,
-    "profilePicture": null,
-    "lastLoginAt": "2026-08-12T19:10:00.000Z",
-    "createdAt": "2026-08-12T19:00:00.000Z",
-    "updatedAt": "2026-08-12T19:10:00.000Z"
-  }
-}
-```
-
-Use this when the frontend starts to restore the session.
-
-### Step 7: Refresh the session
-
-```http
-POST /api/auth/refresh
-X-CSRF-Token: <csrfToken>
-```
-
-No JSON body is required. The browser supplies the refresh cookie.
-
-Successful response:
-
-```json
-{ "message": "Session refreshed" }
-```
-
-The server rotates the refresh session and sets new access and refresh cookies.
-
-Recommended startup logic:
-
-1. Call `/api/auth/me`.
-2. If it returns `401`, call `/api/auth/refresh`.
-3. Retry `/api/auth/me` once.
-4. If refresh fails, clear frontend auth state and show login.
-
-### Step 8: Logout
-
-```http
-POST /api/auth/logout
-X-CSRF-Token: <csrfToken>
-```
-
-No JSON body is required.
-
-Successful response:
-
-```json
-{ "message": "Logged out" }
-```
-
-The server revokes the refresh session and clears the access and refresh cookies.
-
-## 6. Password reset flow
-
-### Request a reset code
-
-```http
-POST /api/auth/forgot-password
-Content-Type: application/json
-X-CSRF-Token: <csrfToken>
-```
-
-Body:
-
-```json
-{ "email": "ada@example.com" }
-```
-
-Response:
-
-```json
-{ "message": "If the account exists, a reset code was sent" }
-```
-
-### Verify the reset code
-
-```http
-POST /api/auth/verify-password-reset
-Content-Type: application/json
-X-CSRF-Token: <csrfToken>
-```
-
-Body:
-
-```json
-{
-  "email": "ada@example.com",
-  "code": "123456"
-}
-```
-
-Response:
-
-```json
-{ "message": "Code verified" }
-```
-
-### Set the new password
-
-```http
-POST /api/auth/reset-password
-Content-Type: application/json
-X-CSRF-Token: <csrfToken>
-```
-
-Body:
-
-```json
-{
-  "email": "ada@example.com",
-  "code": "123456",
-  "password": "another-strong-password"
-}
-```
-
-Response:
-
-```json
-{ "message": "Password reset successfully" }
-```
-
-The reset code is single-use. After a successful reset, all refresh sessions are revoked and the user must log in again.
-
-## 7. Admin logs
-
-```http
-GET /api/logs?page=1&limit=50
-```
-
-This requires the access cookie and an authenticated user with the `admin` role. `limit` is capped at 100.
-
-Response shape:
-
-```json
-{
-  "logs": [],
-  "page": 1,
-  "limit": 50,
-  "total": 0,
-  "pages": 0
-}
-```
-
-## 8. Rate limits
-
-Authentication endpoints use IP and/or account limits. A `429` response includes a `Retry-After` header. The current limiter is process-local; use Redis before running multiple API instances.
-
-## 9. Run locally
+# InternStack Backend
+
+## 1. Project Overview
+
+InternStack is an internship platform connecting students with internship listings and supporting applications, submissions, administration, notifications, and vetting.
+
+This repository contains the backend HTTP API, authentication, MongoDB models, business services, email delivery, audit logging, and Web Intelligence Crawler integration.
+
+Stack: Node.js, TypeScript, Express 5, Mongoose 8, and Zod 4.
+
+## 2. Architecture
+
+- Entry point: `src/server.ts`. There is currently no `src/index.ts` file.
+- Routes are registered in `src/app.ts` under `/api/`.
+- Models are in `src/models/index.ts`.
+- Controllers are in `src/controllers/`.
+- Services are in `src/services/`.
+- Validation schemas are in `src/validation.ts`.
+- Email templates are in `src/emails/templates/index.ts`.
+
+## 3. Environment Variables
+
+### Required
+
+| Variable | Description |
+|---|---|
+| `MONGODB_URI` | MongoDB connection string. |
+| `CLIENT_URL` | Comma-separated frontend URLs allowed by CORS. |
+| `ACCESS_TOKEN_SECRET` | Secret used to sign access tokens; required in production. |
+| `COOKIE_SECURE` | Must be `true` in production HTTPS deployments. |
+
+### Email
+
+| Variable | Description |
+|---|---|
+| `EMAIL_API_KEY` | Brevo API key; preferred API delivery credential. |
+| `EMAIL_API_URL` | Brevo email API URL. |
+| `EMAIL_FROM_NAME` | Display name for outgoing email. |
+| `EMAIL_HOST` | SMTP host used by the SMTP email provider. |
+| `EMAIL_PORT` | SMTP port. |
+| `EMAIL_USER` | SMTP username; alternative to Brevo API delivery. |
+| `EMAIL_PASSWORD` | SMTP password; alternative to Brevo API delivery. |
+| `EMAIL_FROM` | Sender email address. |
+| `EMAIL_LOGO_URL` | Logo URL used by email templates. |
+
+Production requires either `EMAIL_API_KEY` or both `EMAIL_USER` and `EMAIL_PASSWORD`.
+
+### Scraper
+
+| Variable | Description |
+|---|---|
+| `SCRAPER_BASE_URL` | Web Intelligence Crawler service base URL. |
+| `SCRAPER_DEVICE_ID` | Device identifier sent to the crawler. |
+
+### Optional
+
+| Variable | Description |
+|---|---|
+| `NODE_ENV` | `development`, `test`, or `production`; default `development`. |
+| `PORT` | HTTP port; default `4000`. |
+| `MONGODB_SERVER_SELECTION_TIMEOUT_MS` | MongoDB server selection timeout; default `5000`. |
+| `VERIFY_EMAIL_URL` | Frontend email-verification URL. |
+| `RESET_PASSWORD_URL` | Frontend password-reset URL. |
+| `SUPPORT_URL` | Frontend support URL. |
+| `APP_TIME_ZONE` | Time zone used for email dates; default `Africa/Lagos`. |
+| `ACCESS_TOKEN_TTL` | Access-token lifetime; default `15m`. |
+| `REFRESH_TOKEN_TTL` | Refresh-token lifetime; default `30d`. |
+| `ACCESS_COOKIE_NAME` | Access cookie name; default `access_token`. |
+| `REFRESH_COOKIE_NAME` | Refresh cookie name; default `refresh_token`. |
+| `ACCESS_COOKIE_MAX_AGE_MS` | Access-cookie lifetime in milliseconds. |
+| `REFRESH_COOKIE_MAX_AGE_MS` | Refresh-cookie lifetime in milliseconds. |
+| `COOKIE_SAME_SITE` | Cookie SameSite policy: `strict`, `lax`, or `none`. |
+| `CSRF_COOKIE_NAME` | CSRF cookie name; default `csrf_token`. |
+| `REQUEST_TIMEOUT_MS` | General request timeout. |
+| `EMAIL_REQUEST_TIMEOUT_MS` | Email request timeout. |
+| `LOG_TO_DATABASE` | Whether application logs are persisted. |
+| `LOG_RETENTION_DAYS` | Database log retention period. |
+| `OTP_EXPIRATION_MINUTES` | Verification/reset code lifetime. |
+| `OTP_MAX_ATTEMPTS` | Maximum failed code attempts. |
+| `OTP_RESEND_COOLDOWN_SECONDS` | Minimum delay between verification-code requests. |
+| `GLOBAL_RATE_LIMIT` | Global requests allowed per IP per window. |
+| `GLOBAL_RATE_LIMIT_WINDOW_MS` | Global rate-limit window. |
+| `REGISTER_RATE_LIMIT` | Registration requests allowed per IP. |
+| `REGISTER_RATE_LIMIT_WINDOW_MS` | Registration rate-limit window. |
+| `EMAIL_CODE_RATE_LIMIT` | Email-code verification requests allowed per account. |
+| `EMAIL_CODE_RATE_LIMIT_WINDOW_MS` | Email-code rate-limit window. |
+| `RESEND_RATE_LIMIT` | Resend requests allowed per account. |
+| `RESEND_RATE_LIMIT_WINDOW_MS` | Resend rate-limit window. |
+| `LOGIN_RATE_LIMIT` | Login requests allowed per IP/account. |
+| `LOGIN_RATE_LIMIT_WINDOW_MS` | Login rate-limit window. |
+| `PASSWORD_RESET_RATE_LIMIT` | Password-reset rate-limit setting. |
+| `PASSWORD_RESET_RATE_LIMIT_WINDOW_MS` | Password-reset rate-limit window. |
+
+## 4. Getting Started
+
+### Prerequisites
+
+- Node.js compatible with the repository toolchain (`tsx`, TypeScript 5.9).
+- A running MongoDB instance.
+
+### Local setup
 
 ```bash
 npm install
+```
+
+Copy `.env.example` to `.env` and fill in the required values:
+
+```bash
+cp .env.example .env
+```
+
+Start the development server:
+
+```bash
 npm run dev
 ```
 
-The local server listens on port `4000` and expects MongoDB at `mongodb://127.0.0.1:27017/internstack`, unless `MONGODB_URI` is configured.
+Health check:
 
-Production validates that `ACCESS_TOKEN_SECRET`, secure cookies, and email credentials are configured.
-
-## 10. Validation commands
-
-```bash
-npm run typecheck
-npm run build
-npm test
+```http
+GET http://localhost:4000/health
 ```
+
+## 5. Available Scripts
+
+| Script | Description |
+|---|---|
+| `npm run dev` | Starts the TypeScript server with `tsx watch`. |
+| `npm run build` | Installs development dependencies and compiles TypeScript. |
+| `npm start` | Starts the compiled server from `dist/src/server.js`. |
+| `npm test` | Runs Jest serially. |
+| `npm run lint` | Runs ESLint. |
+| `npm run typecheck` | Runs TypeScript without emitting files. |
+
+## 6. API Overview
+
+All mutating requests require the CSRF cookie/header pair. Authenticated browser requests must include credentials so cookies are sent.
+
+| Group | Base Path | Auth |
+|---|---|---|
+| Auth | `/api/auth` | Public; CSRF for mutations |
+| Student Profile | `/api/student/profile` | Student |
+| Student Dashboard | `/api/student/dashboard` | Student |
+| Student Listings | `/api/listings` | Public |
+| Student Applications | `/api/applications`, `/api/student/applications` | Student |
+| Student Submissions | `/api/submissions`, `/api/student/submissions` | Student |
+| Student Notifications | `/api/notifications` | Authenticated user |
+| Admin Dashboard | `/api/admin/dashboard` | Admin / Super Admin |
+| Admin Users | `/api/admin/users` | Admin / Super Admin |
+| Admin Students | `/api/admin/students` | Admin / Super Admin |
+| Admin Companies | `/api/admin/companies` | Admin / Super Admin |
+| Admin Listings | `/api/admin/listings` | Admin / Super Admin |
+| Admin Submissions | `/api/admin/submissions` | Admin / Super Admin |
+| Admin Applications | `/api/admin/applications` | Admin / Super Admin |
+| Admin Audit Logs | `/api/admin/audit-logs` | Admin / Super Admin |
+| Application Logs | `/api/logs` | Admin |
+| Admin Invitations | `/api/admin/invitations` | Super Admin |
+
+## 7. Key Business Rules
+
+- A student can have at most 2 active applications.
+- A student can have at most 1 active application per company.
+- Withdrawal is allowed only within 24 hours of applying and only while status is `applied` or `reviewed`.
+- A CV snapshot is stored when the student applies.
+- Vetting scores range from 0–100, are admin-only, and are never shown to students.
+- Placement confirmation requires `startDate` and `endDate`.
+- `super_admin` cannot be created through the public API; seed it manually.
+- Public registration always creates a `student` user.
+- Company website is a hard unique constraint.
+- Similar company names return a soft `409`; `?force=true` bypasses that check.
+
+## 8. Services
+
+- `src/services/tokens.ts` — `TokenService` creates, rotates, validates, and revokes refresh sessions; access JWTs are also generated here.
+- `src/services/authCodes.ts` — issues and verifies email-verification and password-reset codes.
+- `src/services/email.ts` — `EmailService` with Brevo API, Brevo SMTP, and memory fallback implementations.
+- `src/services/rateLimiter.ts` — process-local in-memory rate limiter.
+- `src/services/profile.ts` — calculates student profile completion.
+- `src/services/audit.ts` — writes AuditLog records.
+- `src/services/notifications.ts` — exports `createNotification` and `sendNotificationEmail`.
+- `src/services/vetting.ts` — exports `calculateVettingScore`.
+- `src/services/scraper.ts` — exports `extractFromUrl`, which calls the Web Intelligence Crawler.
+
+## 9. Email Notifications
+
+`sendNotificationEmail()` sends emails for these 7 notification types:
+
+- `PROFILE_CV_ISSUE`
+- `APPLICATION_WITHDRAWN`
+- `APPLICATION_SUBMITTED`
+- `APPLICATION_REVIEWED`
+- `APPLICATION_ACCEPTED`
+- `APPLICATION_REJECTED`
+- `PLACEMENT_CONFIRMED`
+
+These 3 types create Notification documents but do not send notification emails through `sendNotificationEmail()`:
+
+- `LISTING_CLOSED`
+- `LISTING_EXPIRED`
+- `ADMIN_INVITATION`
+
+Admin invitations still send their separate invitation email directly from the invitation controller.
+
+## 10. Web Intelligence Crawler Integration
+
+1. A student submits a listing URL.
+2. The backend saves a `ListingSubmission` with status `pending` and returns `201`.
+3. `setImmediate` starts `extractFromUrl(url)` in the background.
+4. The submission status changes to `processing`, then `reviewed` on success or `failed` on failure.
+5. `SCRAPER_BASE_URL` and `SCRAPER_DEVICE_ID` must be set in `.env` for extraction.
+6. If the crawler is unavailable, the submission becomes `failed`; an administrator can enter listing data manually.
+
+## 11. Phases Completed
+
+- Phase 1: Authentication, student flows, admin flows, and core models.
+- Phase 2: Vetting, submission approval to listing, invitation resend, notification emails, admin filters, and Zod validation.
+- Phase 2.5: Cleanup including audit type fixes, withdrawn email template, ObjectId validation, date validation, and category filtering.
+- Scraper integration: Asynchronous listing extraction through the Web Intelligence Crawler.
+
+## 12. Known Limitations (V1)
+
+- No file upload; Cloudinary is not integrated. CV and profile-picture URLs are stored as strings.
+- No WebSocket support; notifications are polling-based.
+- No payment or token system; planned for V1.5.
+- Listing auto-close when capacity is reached is not implemented.
+- Institution is free text with no lookup table.
+- Listing category taxonomy exists as a field, but allowed values are not defined.

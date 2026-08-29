@@ -147,3 +147,81 @@ export const passwordChangedEmail = (
   ),
   text: `Your InternStack password was changed\n\nHi ${input.firstName},\n\nChanged on: ${input.changedAt}\nAccount: ${input.email}\n\nIf you did not make this change, contact support: ${input.supportUrl}`,
 });
+
+const notification = (subject: string, message: string): EmailDocument => ({
+  subject,
+  html: emailLayout(
+    subject,
+    emailContent(heading(subject) + paragraph(message)),
+  ),
+  text: message,
+});
+export const applicationSubmittedEmail = (
+  firstName: string,
+  companyName: string,
+  listingTitle: string,
+) =>
+  notification(
+    "Application Submitted",
+    `Hi ${escapeHtml(firstName)}, your application for ${escapeHtml(listingTitle)} at ${escapeHtml(companyName)} was submitted.`,
+  );
+export const applicationReviewedEmail = (
+  firstName: string,
+  companyName: string,
+) =>
+  notification(
+    "Your Application Is Being Reviewed",
+    `Hi ${escapeHtml(firstName)}, ${escapeHtml(companyName)} is reviewing your application.`,
+  );
+export const applicationAcceptedEmail = (
+  firstName: string,
+  companyName: string,
+) =>
+  notification(
+    "Application Accepted",
+    `Hi ${escapeHtml(firstName)}, your application at ${escapeHtml(companyName)} was accepted for the next step. The company decision is still pending.`,
+  );
+export const applicationRejectedEmail = (
+  firstName: string,
+  companyName: string,
+) =>
+  notification(
+    "Update on Your Application",
+    `Hi ${escapeHtml(firstName)}, your application at ${escapeHtml(companyName)} was not selected to proceed at this time.`,
+  );
+export const placementConfirmedEmail = (
+  firstName: string,
+  companyName: string,
+  startDate: string,
+  endDate: string,
+) =>
+  notification(
+    "Congratulations — Placement Confirmed",
+    `Hi ${escapeHtml(firstName)}, your placement at ${escapeHtml(companyName)} is confirmed from ${escapeHtml(startDate)} to ${escapeHtml(endDate)}.`,
+  );
+export const adminInvitationEmail = (
+  inviteUrl: string,
+  expiresInHours: number,
+) =>
+  notification(
+    "You've Been Invited to InternStack",
+    `You have been invited to InternStack as an administrator. Accept this invitation within ${expiresInHours} hours: ${escapeUrl(inviteUrl)}`,
+  );
+export const profileCvIssueEmail = (
+  firstName: string,
+  issue: string,
+  type: string,
+) =>
+  notification(
+    "Action Required: Profile Update Needed",
+    `Hi ${escapeHtml(firstName)}, please update your ${escapeHtml(type)} information: ${escapeHtml(issue)}`,
+  );
+
+export const applicationWithdrawnEmail = (
+  firstName: string,
+  listingTitle: string,
+) =>
+  notification(
+    "Application Withdrawn",
+    `Hi ${escapeHtml(firstName)}, your application to ${escapeHtml(listingTitle)} has been withdrawn as requested.`,
+  );

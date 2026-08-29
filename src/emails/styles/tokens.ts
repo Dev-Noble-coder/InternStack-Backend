@@ -14,5 +14,7 @@ export const emailTokens = {
     border: "#d9deea",
   },
   fontFamily: "Arial, Helvetica, sans-serif",
+  wordmarkFontFamily: "Arial, Helvetica, sans-serif",
+  wordmarkFontWeight: 700,
   width: 600,
 };

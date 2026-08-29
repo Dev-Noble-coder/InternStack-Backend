@@ -1,10 +1,15 @@
-import { AuthCode, User } from "../models";
+import { AdminInvitation, AuthCode, User } from "../models";
 import { AuthCodeService } from "./authCodes";
 import { EmailService } from "./email";
 import { TokenService, accessToken } from "./tokens";
 import { AppError } from "../errors";
 import { config } from "../config";
-import { comparePassword, hashPassword, normalizeEmail } from "../utils";
+import {
+  comparePassword,
+  hashPassword,
+  normalizeEmail,
+  hashSecret,
+} from "../utils";
 import { logger } from "../logging/logger";
 
 export class AuthService {
@@ -197,12 +202,6 @@ export class AuthService {
       });
     }
   }
-  async verifyReset(emailInput: string, code: string) {
-    const user = await User.findOne({ email: normalizeEmail(emailInput) });
-    if (!user)
-      throw new AppError(400, "Invalid or expired code", "INVALID_CODE");
-    await this.codes.verify(user._id, "password_reset", code);
-  }
   async resetPassword(emailInput: string, code: string, password: string) {
     const user = await User.findOne({ email: normalizeEmail(emailInput) });
     if (!user)
@@ -218,5 +217,47 @@ export class AuthService {
       changedAt: this.formatEmailDate(new Date()),
       supportUrl: config.SUPPORT_URL,
     });
+  }
+  async acceptInvitation(
+    token: string,
+    password: string,
+    firstName: string,
+    lastName: string,
+  ) {
+    const invitation = await AdminInvitation.findOne({
+      tokenHash: hashSecret(token),
+    });
+    if (!invitation) throw new AppError(400, "Invalid token", "INVALID_TOKEN");
+    if (invitation.status !== "pending")
+      throw new AppError(
+        400,
+        invitation.status === "accepted"
+          ? "Token already used"
+          : "Token is not valid",
+        invitation.status === "accepted"
+          ? "TOKEN_ALREADY_USED"
+          : "TOKEN_EXPIRED",
+      );
+    if (invitation.expiresAt <= new Date())
+      throw new AppError(400, "Token expired", "TOKEN_EXPIRED");
+    if (await User.exists({ email: invitation.email }))
+      throw new AppError(
+        409,
+        "Email already registered",
+        "EMAIL_ALREADY_REGISTERED",
+      );
+    await User.create({
+      firstName,
+      lastName,
+      email: invitation.email,
+      passwordHash: await hashPassword(password),
+      role: "admin",
+      status: "active",
+      emailVerified: true,
+    });
+    invitation.status = "accepted";
+    invitation.usedAt = new Date();
+    await invitation.save();
+    return { email: invitation.email };
   }
 }

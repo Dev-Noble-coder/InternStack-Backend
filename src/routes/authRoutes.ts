@@ -64,6 +64,11 @@ export function createAuthRouter(
     controller.login,
   );
   router.post("/refresh", controller.refresh);
+  router.post(
+    "/accept-invitation",
+    validate(schemas.acceptInvitation),
+    controller.acceptInvitation,
+  );
   router.get("/me", authenticate, controller.me);
   router.post("/logout", controller.logout);
   router.post(
@@ -75,16 +80,6 @@ export function createAuthRouter(
     ),
     validate(schemas.email),
     controller.forgotPassword,
-  );
-  router.post(
-    "/verify-password-reset",
-    limited(
-      account,
-      config.EMAIL_CODE_RATE_LIMIT,
-      config.EMAIL_CODE_RATE_LIMIT_WINDOW_MS,
-    ),
-    validate(schemas.emailCode),
-    controller.verifyPasswordReset,
   );
   router.post(
     "/reset-password",
