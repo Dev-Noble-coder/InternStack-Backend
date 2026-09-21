@@ -796,6 +796,18 @@ export async function submissionAction(
         ...((item.extractedData as any) ?? {}),
         ...((item.manualData as any) ?? {}),
       };
+      const startDate = merged.startDate
+        ?? (merged.startPeriod
+          ? new Date(merged.startPeriod)
+          : undefined);
+      const endDate = merged.endDate
+        ?? (merged.endPeriod
+          ? new Date(merged.endPeriod)
+          : undefined);
+      const applicationDeadline = merged.applicationDeadline
+        ?? (merged.deadline
+          ? new Date(merged.deadline)
+          : undefined);
       if (
         !r.body.companyId ||
         !/^[0-9a-fA-F]{24}$/.test(String(r.body.companyId)) ||
@@ -813,8 +825,32 @@ export async function submissionAction(
         openings: merged.openings ?? 1,
         workMode: merged.workMode ?? "onsite",
         locations:
-          merged.locations ??
-          (merged.location ? [merged.location] : ["Not specified"]),
+          (merged.locations?.length
+            ? merged.locations
+            : merged.location
+              ? [merged.location]
+              : ["Not specified"]),
+        startDate,
+        endDate,
+        applicationDeadline,
+        ...(merged.jobTitle && {
+          title: merged.title ?? merged.jobTitle,
+        }),
+        ...(merged.locations?.length && {
+          locations: merged.locations,
+        }),
+        ...(merged.applicationUrl && {
+          applicationUrl: merged.applicationUrl,
+        }),
+        ...(merged.skills?.length && {
+          skills: merged.skills,
+        }),
+        ...(merged.requirements && {
+          requirements: merged.requirements,
+        }),
+        ...(merged.internshipType && {
+          internshipType: merged.internshipType,
+        }),
       });
       item.status = "approved";
       item.adminNote = r.body.adminNote;

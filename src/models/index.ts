@@ -262,6 +262,12 @@ const submissionShape = {
   socialLinks: Schema.Types.Mixed,
   keywords: { type: [String], default: [] },
   fetchedAt: String,
+  jobTitle: String,
+  jobDescription: String,
+  employmentType: String,
+  hiringOrganizationName: String,
+  hiringOrganizationLogo: String,
+  locations: { type: [String], default: [] },
 };
 const ListingSubmissionSchema = new Schema(
   {
