@@ -49,6 +49,11 @@ const result = (items: any[], page: number, limit: number, total: number) => ({
   },
 });
 const actor = (r: AuthRequest) => r.identity!.userId;
+const safeSubmission = (item: any) => {
+  const plain = typeof item?.toObject === "function" ? item.toObject() : item;
+  const { extractionError: _extractionError, ...safe } = plain ?? {};
+  return safe;
+};
 const assertId = (value: unknown) => {
   if (!objectIdParam.safeParse(value).success)
     throw new AppError(400, "Invalid ID format.", "VALIDATION_ERROR");
@@ -532,7 +537,7 @@ export async function submissions(r: Request, s: Response, n: NextFunction) {
         .lean(),
       ListingSubmission.countDocuments(f),
     ]);
-    s.json(result(items, page, limit, total));
+    s.json(result(items.map(safeSubmission), page, limit, total));
   } catch (e) {
     n(e);
   }
@@ -543,7 +548,7 @@ export async function submission(r: Request, s: Response, n: NextFunction) {
     const item = await ListingSubmission.findById(r.params.id);
     if (!item)
       throw new AppError(404, "Submission not found", "SUBMISSION_NOT_FOUND");
-    s.json({ success: true, data: item });
+    s.json({ success: true, data: safeSubmission(item) });
   } catch (e) {
     n(e);
   }
@@ -876,7 +881,7 @@ export async function submissionAction(
       s.json({
         success: true,
         message: "Submission approved. Listing created.",
-        data: { submission: item, listing },
+        data: { submission: safeSubmission(item), listing },
       });
       return;
     }
@@ -891,7 +896,7 @@ export async function submissionAction(
       item._id,
       r.body,
     );
-    s.json({ success: true, data: item });
+    s.json({ success: true, data: safeSubmission(item) });
   } catch (e) {
     n(e);
   }

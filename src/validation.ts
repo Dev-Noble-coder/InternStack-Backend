@@ -178,14 +178,73 @@ export const validate =
       return next(
         badRequest(
           "Request validation failed",
-          result.error.issues.map((issue) => ({
-            path: issue.path.map(String).join(".") || "body",
-            message: issue.message,
-            code: issue.code,
-          })),
+          result.error.issues.map((issue) => readableIssue(issue)),
         ),
       );
     }
     request.body = result.data;
     next();
   };
+
+const readableName = (path: string) =>
+  path === "body"
+    ? "The request body"
+    : path
+        .split(".")
+        .pop()!
+        .replace(/([a-z])([A-Z])/g, "$1 $2")
+        .replace(/^./, (value) => value.toUpperCase());
+
+const readableIssue = (issue: z.ZodIssue) => {
+  const path = issue.path.map(String).join(".") || "body";
+  const name = readableName(path);
+  const detail = issue as z.ZodIssue & {
+    expected?: string;
+    received?: string;
+    input?: unknown;
+    format?: string;
+    keys?: string[];
+    values?: unknown[];
+    minimum?: number;
+    maximum?: number;
+    origin?: string;
+  };
+  let message = issue.message;
+  let fix = "Correct this value and submit again.";
+
+  if (issue.code === "unrecognized_keys") {
+    const keys = detail.keys?.join(", ") || "the unsupported fields";
+    message = `Remove unsupported field${detail.keys?.length === 1 ? "" : "s"}: ${keys}.`;
+    fix = "Send only the fields documented for this endpoint.";
+  } else if (issue.code === "invalid_type" && (detail.received === "undefined" || detail.input === undefined)) {
+    message = `${name} is required.`;
+    fix = `Provide ${path === "body" ? "the request body" : `a value for ${path}`} and submit again.`;
+  } else if (issue.code === "invalid_format") {
+    if (detail.format === "email") {
+      message = `${name} must be a valid email address.`;
+      fix = "Use an email such as name@example.com.";
+    } else if (detail.format === "url") {
+      message = `${name} must be a valid URL.`;
+      fix = "Include the full http:// or https:// URL.";
+    } else if (detail.format === "datetime") {
+      message = `${name} must be a valid ISO date-time.`;
+      fix = "Use a date such as 2026-10-01T00:00:00.000Z.";
+    }
+  } else if (issue.code === "invalid_value" && detail.values?.length) {
+    message = `${name} must be one of: ${detail.values.join(", ")}.`;
+    fix = `Choose one of the accepted ${path} values.`;
+  } else if (issue.code === "too_small" && detail.minimum !== undefined) {
+    const unit = detail.origin === "array" ? "items" : "characters";
+    message = `${name} must contain at least ${detail.minimum} ${unit}.`;
+    fix = `Provide at least ${detail.minimum} ${unit}.`;
+  } else if (issue.code === "too_big" && detail.maximum !== undefined) {
+    const unit = detail.origin === "array" ? "items" : "characters";
+    message = `${name} must contain no more than ${detail.maximum} ${unit}.`;
+    fix = `Reduce it to ${detail.maximum} ${unit} or fewer.`;
+  } else if (issue.code === "custom" && issue.message === "Passwords do not match") {
+    message = "Password and confirmPassword must match.";
+    fix = "Enter the same password in both fields.";
+  }
+
+  return { path, message, fix, code: issue.code };
+};

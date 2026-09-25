@@ -24,22 +24,35 @@ const icons = {
 const statusFor = (doc: ApiDoc): string => {
   if (doc.method === "WS") return "WebSocket";
   if (doc.path === "/health" || doc.path === "/ready") return "200";
-  if (doc.method === "POST" && (doc.path.includes("register") || doc.path.includes("invitation") || doc.path === "/api/applications" || doc.path === "/api/submissions" || doc.path === "/api/student/submissions")) return "201";
+  if (doc.path === "/api/submissions" || doc.path === "/api/student/submissions") return "201 manual / 202 URL";
+  if (doc.path === "/api/admin/students/:id/flag") return "200";
+  if (doc.method === "POST" && (doc.path.includes("register") || doc.path.includes("invitation") || doc.path === "/api/applications")) return "201";
   if (doc.path === "/api/auth/csrf") return "200";
   return "200";
 };
 
 const responseExample = (doc: ApiDoc): string => {
-  const user = { _id: "665f2c9e8f1a2b3c4d5e6f70", firstName: "Ada", lastName: "Lovelace", email: "ada@example.com", role: "student", isVerified: true };
-  const listing = { _id: "64f000000000000000000000", title: "Software Engineering Intern", companyId: { _id: "64f000000000000000000001", name: "Example Co", website: "https://example.com" }, status: "published", workMode: "hybrid", locations: ["Lagos"], skills: ["TypeScript", "MongoDB"] };
-  const application = { _id: "665f2d1a8f1a2b3c4d5e6f71", studentId: user._id, listingId: listing._id, companyId: "64f000000000000000000001", status: "applied", cvSnapshot: { url: "https://cdn.example.com/cv/ada-lovelace.pdf", filename: "ada-lovelace.pdf" }, appliedAt: "2026-09-25T10:30:00.000Z" };
+  const user = { _id: "665f2c9e8f1a2b3c4d5e6f70", firstName: "Ada", lastName: "Lovelace", email: "ada@example.com", role: "student", isVerified: true, status: "active" };
+  const profile = { userId: user._id, institution: "Example University", matricNumber: "EX/2026/001", level: "400L", internshipType: "SIWES", skills: ["TypeScript", "MongoDB"], completionPercentage: 80 };
+  const company = { _id: "64f000000000000000000001", name: "Example Co", website: "https://example.com", state: "Lagos" };
+  const listingBase = { _id: "64f000000000000000000000", title: "Software Engineering Intern", companyId: company._id, status: "published", workMode: "hybrid", internshipType: "SIWES", locations: ["Lagos"], skills: ["TypeScript", "MongoDB"] };
+  const listing = { ...listingBase, companyId: company };
+  const listingDetail = { ...listing, applicationCount: 1 };
+  const applicationBase = { _id: "665f2d1a8f1a2b3c4d5e6f71", studentId: user._id, listingId: listingBase._id, companyId: company._id, status: "applied", cvSnapshot: { url: "https://cdn.example.com/cv/ada-lovelace.pdf", filename: "ada-lovelace.pdf" }, appliedAt: "2026-09-25T10:30:00.000Z" };
+  const application = { ...applicationBase, canWithdraw: true };
+  const submission = { _id: "665f2e2a8f1a2b3c4d5e6f72", submittedBy: user._id, type: "url", sourceUrl: "https://example.com/internship", status: "pending", extractionStatus: "queued" };
+  const notification = { _id: "665f2f3a8f1a2b3c4d5e6f73", type: "APPLICATION_SUBMITTED", title: "Application submitted", message: "Your application was submitted.", isRead: false };
+  const invitation = { _id: "665f304a8f1a2b3c4d5e6f74", email: "admin@example.com", status: "pending", expiresAt: "2026-10-02T10:30:00.000Z" };
   const pagination = { page: 1, limit: 20, total: 1, pages: 1, hasNext: false, hasPrevious: false };
+  const paginated = (items: unknown[]) => json({ success: true, data: { items, pagination } });
+  const single = (data: unknown, message?: string) => json({ success: true, ...(message ? { message } : {}), data });
 
-  if (doc.method === "WS") return doc.success;
+  if (doc.method === "WS") return json({ type: "submission_accepted", requestId: "req-123", submissionId: submission._id, status: "pending" });
   if (doc.path === "/health") return json({ status: "ok" });
   if (doc.path === "/ready") return json({ status: "ready" });
   if (doc.path === "/api/auth/csrf") return json({ csrfToken: "csrf-token-from-server" });
-  if (doc.path === "/api/auth/register" || doc.path === "/api/auth/me") return json({ user });
+  if (doc.path === "/api/auth/register") return json({ user: { ...user, isVerified: false } });
+  if (doc.path === "/api/auth/me") return json({ user });
   if (doc.path === "/api/auth/login") return json({ user });
   if (doc.path === "/api/auth/verify-email") return json({ user: { ...user, isVerified: true } });
   if (doc.path === "/api/auth/resend-verification") return json({ message: "If the account exists, a verification code was sent" });
@@ -49,18 +62,54 @@ const responseExample = (doc: ApiDoc): string => {
   if (doc.path === "/api/auth/reset-password") return json({ message: "Password reset successfully" });
   if (doc.path === "/api/auth/accept-invitation") return json({ success: true, data: { email: "admin@example.com" } });
   if (doc.path === "/api/listings") return json({ success: true, data: { items: [listing], pagination } });
-  if (doc.path === "/api/listings/:id") return json({ success: true, data: listing });
-  if (doc.path === "/api/applications") return json({ success: true, data: application });
-  if (doc.path === "/api/submissions") return json({ success: true, data: { submissionId: "665f2e2a8f1a2b3c4d5e6f72", status: "pending" } });
-  if (doc.path === "/api/student/profile") return json({ success: true, data: { userId: user._id, institution: "Example University", matricNumber: "EX/2026/001", level: "400L", skills: ["TypeScript", "MongoDB"], completionPercentage: 80 } });
+  if (doc.path === "/api/listings/:id") return single(listing);
+  if (doc.path === "/api/applications") return single(applicationBase);
+  if (doc.path === "/api/submissions") return single({ submissionId: submission._id, status: "pending" });
+  if (doc.path === "/api/student/profile") return single(profile);
   if (doc.path === "/api/student/dashboard") return json({ success: true, data: { profile: { firstName: "Ada", profilePicture: null, completionPercentage: 80 }, applications: { active: 1, total: 1 }, suggestedListings: [listing], notifications: { unreadCount: 2 } } });
-  if (doc.path.includes("/applications")) return json({ success: true, data: { items: [application], pagination } });
-  if (doc.path.includes("/submissions")) return json({ success: true, data: { items: [{ _id: "665f2e2a8f1a2b3c4d5e6f72", type: "url", sourceUrl: "https://example.com/internship", status: "pending" }], pagination } });
-  if (doc.path.includes("/notifications/unread-count")) return json({ success: true, data: { count: 0 } });
+  if (doc.path === "/api/student/applications") return paginated([application]);
+  if (doc.path === "/api/student/applications/:id" && doc.method === "GET") return single(application);
+  if (doc.path === "/api/student/applications/:id" && doc.method === "DELETE") return single({ ...application, status: "withdrawn", withdrawnAt: "2026-09-25T11:00:00.000Z" }, "Application withdrawn");
+  if (doc.path === "/api/student/submissions" && doc.method === "GET") return paginated([submission]);
+  if (doc.path === "/api/student/submissions" && doc.method === "POST") return single({ submissionId: submission._id, status: "pending" });
+  if (doc.path === "/api/admin/dashboard") return json({ success: true, data: { stats: { totalUsers: 12, totalStudents: 10, totalAdmins: 2, totalListings: 8, totalCompanies: 4, activeApplications: 5, placementsConfirmed: 2 }, recentUsers: [user], recentApplications: [application], notifications: { unreadCount: 2 }, pendingSubmissions: 1 } });
+  if (doc.path === "/api/admin/users") return paginated([user]);
+  if (doc.path === "/api/admin/users/:id") return single({ ...user, profile, applicationCount: 1, activeApplications: 1 });
+  if (doc.path === "/api/admin/students/:id/profile") return single(profile);
+  if (doc.path === "/api/admin/students/:id/flag") return single({}, "Profile flagged");
+  if (doc.path === "/api/admin/companies" && doc.method === "GET") return paginated([company]);
+  if (doc.path === "/api/admin/companies" && doc.method === "POST") return single(company);
+  if (doc.path === "/api/admin/companies/:id" && doc.method === "GET") return single({ ...company, listings: [listing] });
+  if (doc.path === "/api/admin/companies/:id" && doc.method === "PUT") return single(company);
+  if (doc.path === "/api/admin/listings" && doc.method === "GET") return paginated([listing]);
+  if (doc.path === "/api/admin/listings" && doc.method === "POST") return single(listingBase);
+  if (doc.path === "/api/admin/listings/:id" && doc.method === "GET") return single(listingDetail);
+  if (doc.path === "/api/admin/listings/:id" && doc.method === "PUT") return single({ ...listingBase, title: "Updated Software Intern" });
+  if (doc.path === "/api/admin/submissions") return paginated([submission]);
+  if (doc.path === "/api/admin/submissions/:id") return single(submission);
+  if (doc.path === "/api/admin/submissions/:id/approve") return single({ submission, listing: listingBase }, "Submission approved. Listing created.");
+  if (doc.path === "/api/admin/applications") return paginated([applicationBase]);
+  if (doc.path === "/api/admin/applications/:id") return single({ ...applicationBase, vettingScore: 80, vettingBreakdown: { profileCompleteness: 25, cvPresent: 25, skillsMatch: 20, eligibility: 10 } });
+  if (doc.path === "/api/admin/audit-logs") return paginated([{ _id: "665f305a8f1a2b3c4d5e6f75", action: "APPLICATION_SUBMITTED", performedBy: user._id, targetType: "Application", targetId: application._id, timestamp: "2026-09-25T10:30:00.000Z" }]);
+  if (doc.path === "/api/admin/invitations" && doc.method === "GET") return paginated([invitation]);
+  if (doc.path === "/api/admin/invitations" && doc.method === "POST") return single({ id: invitation._id, status: "pending" });
+  if (doc.path === "/api/admin/invitations/:id/resend") return single({ invitation }, "Invitation resent.");
+  if (doc.path === "/api/admin/invitations/:id") return single(invitation);
   if (doc.path === "/api/logs") return json({ logs: [], page: 1, limit: 50, total: 0, pages: 0 });
-  if (doc.path.includes("/notifications")) return json({ success: true, data: { items: [{ _id: "665f2f3a8f1a2b3c4d5e6f73", type: "APPLICATION_SUBMITTED", title: "Application submitted", message: "Your application was submitted.", isRead: false }], pagination } });
-  if (doc.group === "Admin") return json({ success: true, data: { _id: "665f2c9e8f1a2b3c4d5e6f70", status: "active", name: "Example record", updatedAt: "2026-09-25T10:30:00.000Z" } });
-  if (doc.group === "Invitations") return json({ success: true, data: { _id: "665f304a8f1a2b3c4d5e6f74", email: "admin@example.com", status: "pending", expiresAt: "2026-10-02T10:30:00.000Z" } });
+  if (doc.path.includes("/notifications/unread-count")) return json({ success: true, data: { count: 0 } });
+  if (doc.path === "/api/notifications") return paginated([notification]);
+  if (doc.path === "/api/notifications/:id/read") return single({ ...notification, isRead: true });
+  if (doc.path === "/api/notifications/read-all") return json({ success: true, message: "Notifications marked as read", data: {} });
+  if (doc.path === "/api/admin/users/:id/suspend" || doc.path === "/api/admin/users/:id/reactivate" || doc.path === "/api/admin/users/:id/deactivate") {
+    const status = doc.path.endsWith("/suspend") ? "suspended" : doc.path.endsWith("/reactivate") ? "active" : "deactivated";
+    return single({ ...user, status }, `User ${status}`);
+  }
+  if (doc.path === "/api/admin/listings/:id/close" || doc.path === "/api/admin/listings/:id/expire") return single({ ...listingBase, status: doc.path.endsWith("/close") ? "closed" : "expired" });
+  if (doc.path === "/api/admin/submissions/:id/reject") return single({ ...submission, status: "rejected" });
+  if (doc.path === "/api/admin/applications/:id/confirm-placement") return single({ ...application, placement: { confirmed: true, startDate: "2026-10-01T00:00:00.000Z", endDate: "2027-01-01T00:00:00.000Z", note: "Confirmed" } });
+  if (doc.path === "/api/admin/applications/:id/review") return single({ ...application, status: "reviewed" });
+  if (doc.path === "/api/admin/applications/:id/accept") return single({ ...application, status: "accepted" });
+  if (doc.path === "/api/admin/applications/:id/reject") return single({ ...application, status: "rejected" });
   return json({ success: true, data: {} });
 };
 
@@ -297,7 +346,7 @@ const endpointCard = (doc: ApiDoc, index: number) => {
 
 const authGuide = '<section id="authentication-guide" class="guide"><div class="group-heading"><div><p class="eyebrow">START HERE</p><h2>Authentication and request setup</h2></div></div><p>Browser clients use httpOnly cookies for the access and refresh sessions. Mutating requests also use a CSRF cookie/header pair.</p><ol><li>Call <code>GET /api/auth/csrf</code> and keep the <code>csrf_token</code> cookie.</li><li>Send the returned token in <code>X-CSRF-Token</code> for every POST, PUT, PATCH, and DELETE request.</li><li>Send requests with <code>credentials: "include"</code> so authentication and CSRF cookies are included.</li><li>After login, the server sets <code>access_token</code> and <code>refresh_token</code> cookies; do not try to read the httpOnly values from browser JavaScript.</li></ol>' + code('const csrf = await fetch("/api/auth/csrf", { credentials: "include" });\\nconst { csrfToken } = await csrf.json();\\n\\nawait fetch("/api/student/profile", {\\n  method: "PUT",\\n  credentials: "include",\\n  headers: {\\n    "Content-Type": "application/json",\\n    "X-CSRF-Token": csrfToken\\n  },\\n  body: JSON.stringify({ institution: "Example University" })\\n});') + '</section>';
 
-const errorGuide = '<section class="guide"><div class="group-heading"><div><p class="eyebrow">ERROR HANDLING</p><h2>Error response format</h2></div></div><p>HTTP errors use one consistent JSON envelope. The <code>code</code> identifies the machine-readable failure and <code>message</code> is suitable for diagnostics or user-facing handling.</p>' + code('{ "error": { "code": "UNAUTHENTICATED", "message": "Authentication required" } }') + '<p class="note"><strong>Common codes:</strong> <code>VALIDATION_ERROR</code>, <code>UNAUTHENTICATED</code>, <code>FORBIDDEN</code>, <code>CSRF_INVALID</code>, <code>NOT_FOUND</code>, <code>RATE_LIMITED</code>, <code>CONFLICT</code>, and <code>INTERNAL_ERROR</code>. Endpoint cards list the statuses and operation-specific failures that apply.</p></section>';
+const errorGuide = '<section class="guide"><div class="group-heading"><div><p class="eyebrow">ERROR HANDLING</p><h2>Error response format</h2></div></div><p>HTTP errors use one consistent JSON envelope. The <code>code</code> is for client logic, <code>message</code> briefly explains what went wrong, and <code>fix</code> tells the caller what to do next. Validation errors also include one detail per invalid field.</p>' + code('{ "error": {\n  "code": "VALIDATION_ERROR",\n  "message": "Request validation failed",\n  "fix": "Correct the listed fields and submit the request again.",\n  "details": [\n    { "path": "email", "message": "Email must be a valid email address.", "fix": "Use an email such as name@example.com.", "code": "invalid_format" }\n  ]\n}') + '<p class="note"><strong>Security:</strong> Error responses never include passwords, tokens, cookies, stack traces, raw database errors, or submitted secret values.</p><p class="note"><strong>Common codes:</strong> <code>VALIDATION_ERROR</code>, <code>UNAUTHENTICATED</code>, <code>FORBIDDEN</code>, <code>CSRF_INVALID</code>, <code>NOT_FOUND</code>, <code>RATE_LIMITED</code>, <code>CONFLICT</code>, and <code>INTERNAL_ERROR</code>.</p></section>';
 
 const submissionGuide = '<section id="submission-protocol" class="guide"><div class="group-heading"><div><p class="eyebrow">SUBMISSION WORKFLOW</p><h3>URL extraction protocol</h3></div></div><p>Use the HTTP endpoint to create a submission, then use the WebSocket transport when the client needs live extraction progress.</p><div class="protocol-steps"><div><strong>1</strong><span>POST a URL to <code>/api/submissions</code>.</span></div><div><strong>2</strong><span>Store the returned <code>submissionId</code>.</span></div><div><strong>3</strong><span>Connect to <code>wss://api.internstack.com.ng/ws</code> with the access cookie.</span></div><div><strong>4</strong><span>Send <code>subscribe_submission</code> and handle queued, processing, completed, and failed events.</span></div></div>' + code('{ "type": "subscribe_submission", "submissionId": "665f2e2a8f1a2b3c4d5e6f72" }') + '</section>';
 

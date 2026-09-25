@@ -83,7 +83,8 @@ export async function listInvitations(
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit)
-        .lean(),
+      .select("-tokenHash")
+      .lean(),
       AdminInvitation.countDocuments(f),
     ]);
     s.json({
@@ -124,7 +125,8 @@ export async function revokeInvitation(
       "Invitation",
       item._id,
     );
-    s.json({ success: true, data: item });
+    const { tokenHash: _tokenHash, ...safeItem } = item.toObject();
+    s.json({ success: true, data: safeItem });
   } catch (e) {
     n(e);
   }
@@ -169,7 +171,7 @@ export async function resendAdminInvitation(
     s.json({
       success: true,
       message: "Invitation resent.",
-      data: { invitation: item },
+      data: { invitation: (({ tokenHash: _tokenHash, ...safeItem }) => safeItem)(item.toObject()) },
     });
   } catch (e) {
     n(e);

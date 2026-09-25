@@ -80,8 +80,11 @@ async function handleConnection(socket: WebSocket, request: IncomingMessage) {
       } else {
         send(socket, { type: "error", message: "Unsupported message type" });
       }
-    } catch (error) {
-      send(socket, { type: "error", message: error instanceof Error ? error.message : "Invalid message" });
+    } catch {
+      send(socket, {
+        type: "error",
+        message: "We could not process that message. Check its format and try again.",
+      });
     }
   };
   authenticated = true;

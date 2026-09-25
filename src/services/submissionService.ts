@@ -64,5 +64,13 @@ export async function createUrlSubmission(input: { userId: string; sourceUrl: st
 export async function getSubmissionSnapshot(submissionId: string, userId: string) {
   const item = await ListingSubmission.findOne({ _id: submissionId, submittedBy: userId }).lean();
   if (!item) throw new AppError(404, "Submission not found", "SUBMISSION_NOT_FOUND");
-  return { type: "submission_snapshot", submissionId, status: item.status, data: item.extractedData, error: item.extractionError };
+  return {
+    type: "submission_snapshot",
+    submissionId,
+    status: item.status,
+    data: item.extractedData,
+    error: item.extractionError
+      ? "Opportunity extraction failed. Please try again later."
+      : undefined,
+  };
 }

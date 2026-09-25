@@ -24,8 +24,14 @@ export async function listLogs(
         .lean(),
       Log.countDocuments(),
     ]);
+    const safeLogs = logs.map(({ level, message, request: requestInfo, createdAt }) => ({
+      level,
+      message,
+      request: requestInfo,
+      createdAt,
+    }));
     response.json({
-      logs,
+      logs: safeLogs,
       page,
       limit,
       total,
