@@ -3,7 +3,6 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import path from "path";
-import dns from "dns";
 import { config } from "./config";
 import { AuthService } from "./services/auth";
 import { AuthCodeService } from "./services/authCodes";
@@ -26,8 +25,7 @@ import { createNotificationRouter } from "./routes/notificationRoutes";
 import { createAdminRouter } from "./routes/adminRoutes";
 import { createInvitationRouter } from "./routes/invitationRoutes";
 import { createSubmissionRouter } from "./routes/submissionRoutes";
-dns.setServers(["8.8.8.8", "1.1.1.1"]);
-
+import { docsCss, docsHtml, docsJs } from "./docs/docsPageV2";
 export function createApp(emailService: EmailService = createEmailService()) {
   const app = express();
   if (config.NODE_ENV === "production") app.set("trust proxy", 1);
@@ -51,6 +49,9 @@ export function createApp(emailService: EmailService = createEmailService()) {
     ),
   );
   app.get("/health", (_request, response) => response.json({ status: "ok" }));
+  app.get("/docs", (_request, response) => response.type("html").send(docsHtml()));
+  app.get("/docs/styles.css", (_request, response) => response.type("css").send(docsCss));
+  app.get("/docs/script.js", (_request, response) => response.type("application/javascript").send(docsJs));
   app.get("/ready", (_request, response) => {
     const ready = mongoose.connection.readyState === 1;
     response

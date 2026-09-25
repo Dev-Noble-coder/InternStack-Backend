@@ -7,7 +7,7 @@ export const createSubmissionRouter = () => {
   router.post(
     "/",
     authenticate,
-    authorize("student"),
+    authorize("student", "admin"),
     validate(schemas.submission),
     createSubmission,
   );

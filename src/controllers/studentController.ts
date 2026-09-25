@@ -15,7 +15,7 @@ import {
 } from "../services/notifications";
 import { AuthRequest } from "../middleware/auth";
 import { objectIdParam } from "../validation";
-import { extractFromUrl } from "../services/scraper";
+import { createUrlSubmission } from "../services/submissionService";
 import { logger } from "../logging/logger";
 
 const id = (request: AuthRequest) => request.identity!.userId;
@@ -282,33 +282,20 @@ export async function createSubmission(
       throw badRequest("sourceUrl is required");
     if (body.type === "manual" && (!body.company || !body.title))
       throw badRequest("company and title are required");
+    if (body.type === "url") {
+      const result = await createUrlSubmission({
+        userId: id(request),
+        sourceUrl: body.sourceUrl,
+        idempotencyKey: request.get("Idempotency-Key") ?? undefined,
+      });
+      response.status(202).json({ success: true, data: result });
+      return;
+    }
     const submission = await ListingSubmission.create({
       submittedBy: id(request),
       type: body.type,
-      sourceUrl: body.sourceUrl,
-      manualData: body.type === "manual" ? body : undefined,
+      manualData: body,
     });
-    if (body.type === "url") {
-      setImmediate(async () => {
-        try {
-          const current = await ListingSubmission.findById(submission._id);
-          if (!current || !current.sourceUrl) return;
-          current.status = "processing";
-          await current.save();
-          const extracted = await extractFromUrl(current.sourceUrl);
-          current.status = extracted ? "reviewed" : "failed";
-          if (extracted) current.extractedData = extracted as any;
-          await current.save();
-        } catch (error) {
-          logger.error("Extraction failed", error, undefined, {
-            submissionId: submission._id.toString(),
-          });
-          await ListingSubmission.findByIdAndUpdate(submission._id, {
-            status: "failed",
-          }).catch(() => undefined);
-        }
-      });
-    }
     response.status(201).json({
       success: true,
       data: { submissionId: submission._id, status: submission.status },

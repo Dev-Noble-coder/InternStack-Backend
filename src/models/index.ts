@@ -189,6 +189,7 @@ const ListingSchema = new Schema(
   opts,
 );
 ListingSchema.index({ title: "text", description: "text", skills: "text" });
+ListingSchema.index({ submissionId: 1 }, { unique: true, sparse: true });
 
 const ApplicationSchema = new Schema(
   {
@@ -265,6 +266,7 @@ const submissionShape = {
   jobTitle: String,
   jobDescription: String,
   employmentType: String,
+  applicationDeadline: String,
   hiringOrganizationName: String,
   hiringOrganizationLogo: String,
   locations: { type: [String], default: [] },
@@ -295,9 +297,50 @@ const ListingSubmissionSchema = new Schema(
     },
     adminNote: String,
     reviewedAt: Date,
+    idempotencyKey: String,
+    extractionJobId: { type: String, index: true },
+    extractionStatus: {
+      type: String,
+      enum: ["queued", "processing", "completed", "failed"],
+    },
+    extractionAttempts: { type: Number, default: 0 },
+    extractionError: String,
+    processingStartedAt: Date,
+    completedAt: Date,
+    lastAttemptAt: Date,
   },
   opts,
 );
+ListingSubmissionSchema.index({ submittedBy: 1, idempotencyKey: 1 }, { unique: true, sparse: true });
+
+const ExtractionJobSchema = new Schema(
+  {
+    submissionId: {
+      type: Types.ObjectId,
+      ref: "ListingSubmission",
+      required: true,
+      unique: true,
+      index: true,
+    },
+    submittedBy: { type: Types.ObjectId, ref: "User", required: true, index: true },
+    sourceUrl: { type: String, required: true },
+    normalizedUrl: { type: String, required: true },
+    status: {
+      type: String,
+      enum: ["queued", "processing", "completed", "failed"],
+      default: "queued",
+      index: true,
+    },
+    attempts: { type: Number, default: 0 },
+    maxAttempts: { type: Number, required: true },
+    lastError: String,
+    nextAttemptAt: Date,
+    processingStartedAt: Date,
+    completedAt: Date,
+  },
+  opts,
+);
+ExtractionJobSchema.index({ submittedBy: 1, normalizedUrl: 1, status: 1 });
 
 const AdminInvitationSchema = new Schema(
   {
@@ -390,6 +433,7 @@ export const ListingSubmission = model(
   "ListingSubmission",
   ListingSubmissionSchema,
 );
+export const ExtractionJob = model("ExtractionJob", ExtractionJobSchema);
 export const AdminInvitation = model("AdminInvitation", AdminInvitationSchema);
 export const Notification = model("Notification", NotificationSchema);
 export const AuditLog = model("AuditLog", AuditLogSchema);

@@ -5,6 +5,7 @@ const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(4000),
   MONGODB_SERVER_SELECTION_TIMEOUT_MS: z.coerce.number().int().positive().default(5_000),
+  MONGODB_DNS_SERVERS: z.string().optional(),
   MONGODB_URI: z.string().min(1).default("mongodb://127.0.0.1:27017/internstack"),
   CLIENT_URL: z.string().default("http://localhost:3000"),
   VERIFY_EMAIL_URL: z.string().url().optional(),
@@ -22,6 +23,12 @@ const schema = z.object({
   COOKIE_SAME_SITE: z.enum(["strict", "lax", "none"]).default("lax"),
   CSRF_COOKIE_NAME: z.string().default("csrf_token"),
   REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
+  REDIS_URL: z.string().url().optional(),
+  EXTRACTION_MAX_ATTEMPTS: z.coerce.number().int().positive().default(3),
+  EXTRACTION_SCRAPER_TIMEOUT_MS: z.coerce.number().int().positive().default(60_000),
+  WS_HEARTBEAT_INTERVAL_MS: z.coerce.number().int().positive().default(30_000),
+  WS_IDLE_TIMEOUT_MS: z.coerce.number().int().positive().default(900_000),
+  WS_MAX_CONNECTION_MS: z.coerce.number().int().positive().default(86_400_000),
   EMAIL_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
   LOG_TO_DATABASE: z.enum(["true", "false"]).default("true"),
   LOG_RETENTION_DAYS: z.coerce.number().int().positive().default(30),
@@ -57,6 +64,7 @@ if (!parsed.success) throw new Error(`Invalid environment: ${parsed.error.messag
 if (parsed.data.NODE_ENV === "production") {
   if (!parsed.data.ACCESS_TOKEN_SECRET) throw new Error("ACCESS_TOKEN_SECRET must be set in production");
   if (parsed.data.COOKIE_SECURE !== "true") throw new Error("COOKIE_SECURE=true is required in production");
+  if (!parsed.data.REDIS_URL) throw new Error("REDIS_URL is required in production");
   if (!parsed.data.EMAIL_API_KEY && !(parsed.data.EMAIL_USER && parsed.data.EMAIL_PASSWORD)) {
     throw new Error("Production email credentials are required");
   }

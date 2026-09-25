@@ -1,4 +1,5 @@
 import { logger } from "../logging/logger";
+import { config } from "../config";
 
 export type ExtractedData = {
   title?: string | null;
@@ -13,6 +14,7 @@ export type ExtractedData = {
   jobTitle?: string | null;
   jobDescription?: string | null;
   employmentType?: string | null;
+  internshipType?: string | null;
   applicationDeadline?: string | null;
   locations?: string[];
   applicationUrl?: string | null;
@@ -29,7 +31,7 @@ export async function extractFromUrl(url: string): Promise<ExtractedData | null>
   }
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 20_000);
+    const timeout = setTimeout(() => controller.abort(), config.EXTRACTION_SCRAPER_TIMEOUT_MS);
     try {
       const response = await fetch(`${baseUrl.replace(/\/$/, "")}/metadata/preview`, {
         method: "POST",
@@ -62,8 +64,8 @@ export async function extractFromUrl(url: string): Promise<ExtractedData | null>
       const metadata = payload.metadata ?? {};
       const jobPosting = payload.jobPosting ?? null;
       return {
-        title: metadata.ogTitle ?? metadata.title ?? null,
-        description: metadata.ogDescription ?? metadata.description ?? null,
+        title: jobPosting?.title ?? metadata.ogTitle ?? metadata.title ?? null,
+        description: jobPosting?.description ?? metadata.ogDescription ?? metadata.description ?? null,
         companyName: jobPosting?.hiringOrganization?.name ?? metadata.siteName ?? null,
         skills: [],
         imageUrl: jobPosting?.hiringOrganization?.logo ?? metadata.ogImage ?? payload.images?.[0] ?? null,
@@ -74,6 +76,7 @@ export async function extractFromUrl(url: string): Promise<ExtractedData | null>
         jobTitle: jobPosting?.title ?? null,
         jobDescription: jobPosting?.description ?? null,
         employmentType: jobPosting?.employmentType ?? null,
+        internshipType: mapInternshipType(jobPosting?.employmentType),
         applicationDeadline: jobPosting?.validThrough ?? null,
         locations: jobPosting?.jobLocation ?? [],
         applicationUrl: jobPosting?.applicationUrl ?? null,
@@ -87,4 +90,13 @@ export async function extractFromUrl(url: string): Promise<ExtractedData | null>
     logger.warn("Scraper extraction failed", { error: String(error) });
     return null;
   }
+}
+
+function mapInternshipType(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase().replace(/[\s_-]+/g, " ");
+  if (normalized.includes("siwes")) return "SIWES";
+  if (normalized.includes("industrial training")) return "Industrial Training";
+  if (normalized.includes("intern")) return "General Internship";
+  return null;
 }

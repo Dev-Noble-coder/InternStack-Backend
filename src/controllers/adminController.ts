@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import mongoose from "mongoose";
 import {
   Application,
   AuditLog,
@@ -817,7 +818,11 @@ export async function submissionAction(
         throw new AppError(400, "companyId is required.", "VALIDATION_ERROR");
       if (!(await Company.findById(r.body.companyId)))
         throw new AppError(404, "Company not found.", "COMPANY_NOT_FOUND");
-      const listing = await Listing.create({
+      const session = await mongoose.startSession();
+      let listing: any;
+      try {
+        await session.withTransaction(async () => {
+          [listing] = await Listing.create([{
         ...merged,
         companyId: r.body.companyId,
         submissionId: item._id,
@@ -851,11 +856,16 @@ export async function submissionAction(
         ...(merged.internshipType && {
           internshipType: merged.internshipType,
         }),
-      });
-      item.status = "approved";
-      item.adminNote = r.body.adminNote;
-      item.reviewedAt = new Date();
-      await item.save();
+          }], { session });
+          item.status = "approved";
+          item.adminNote = r.body.adminNote;
+          item.reviewedAt = new Date();
+          await item.save({ session });
+        });
+      } finally {
+        await session.endSession();
+      }
+      if (!listing) throw new AppError(500, "Listing creation failed", "LISTING_CREATE_FAILED");
       await createAuditLog(
         "LISTING_CREATED",
         actor(r),
