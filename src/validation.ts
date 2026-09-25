@@ -2,24 +2,26 @@ import { z } from "zod";
 import { Request, Response, NextFunction } from "express";
 import { badRequest } from "./errors";
 
+const strictObject = <T extends z.ZodRawShape>(shape: T) =>
+  z.object(shape).strict();
 const email = z.string().trim().toLowerCase().email();
 const password = z.string().min(8).max(128);
 export const objectIdParam = z
   .string()
   .regex(/^[a-f\d]{24}$/i, "Invalid ID format");
 export const schemas = {
-  register: z.object({
+  register: strictObject({
     firstName: z.string().trim().min(1).max(80),
     lastName: z.string().trim().min(1).max(80),
     email,
     password,
     role: z.enum(["student"]).optional(),
   }),
-  email: z.object({ email }),
-  emailCode: z.object({ email, code: z.string().regex(/^\d{6}$/) }),
-  login: z.object({ email, password: z.string().min(1) }),
-  reset: z.object({ email, code: z.string().regex(/^\d{6}$/), password }),
-  studentProfile: z.object({
+  email: strictObject({ email }),
+  emailCode: strictObject({ email, code: z.string().regex(/^\d{6}$/) }),
+  login: strictObject({ email, password: z.string().min(1) }),
+  reset: strictObject({ email, code: z.string().regex(/^\d{6}$/), password }),
+  studentProfile: strictObject({
     phone: z.string().optional(),
     bio: z.string().optional(),
     address: z.string().optional(),
@@ -45,7 +47,7 @@ export const schemas = {
     skills: z.array(z.string()).optional(),
     profilePictureUrl: z.string().optional(),
   }),
-  submission: z.object({
+  submission: strictObject({
     type: z.enum(["url", "manual"]),
     sourceUrl: z.string().url().optional(),
     company: z.string().optional(),
@@ -68,16 +70,16 @@ export const schemas = {
     skills: z.array(z.string()).optional(),
     applicationUrl: z.string().optional(),
   }),
-  application: z.object({ listingId: z.string().min(1) }),
-  notificationRead: z.object({}),
-  reason: z.object({ reason: z.string().min(1) }),
-  flag: z.object({ issue: z.string().min(1), type: z.enum(["cv", "profile"]) }),
-  invitation: z.object({ email }),
-  approveSubmission: z.object({
+  application: strictObject({ listingId: z.string().min(1) }),
+  notificationRead: strictObject({}),
+  reason: strictObject({ reason: z.string().min(1) }),
+  flag: strictObject({ issue: z.string().min(1), type: z.enum(["cv", "profile"]) }),
+  invitation: strictObject({ email }),
+  approveSubmission: strictObject({
     companyId: z.string().regex(/^[0-9a-fA-F]{24}$/),
     adminNote: z.string().optional(),
   }),
-  companyCreate: z.object({
+  companyCreate: strictObject({
     name: z.string().min(2).max(100),
     website: z.string().url().optional(),
     industry: z.string().optional(),
@@ -88,7 +90,7 @@ export const schemas = {
     state: z.string().optional(),
     logo: z.string().url().optional(),
   }),
-  companyUpdate: z.object({
+  companyUpdate: strictObject({
     name: z.string().min(2).max(100).optional(),
     website: z.string().url().optional(),
     industry: z.string().optional(),
@@ -99,7 +101,7 @@ export const schemas = {
     state: z.string().optional(),
     logo: z.string().url().optional(),
   }),
-  listingCreate: z.object({
+  listingCreate: strictObject({
     companyId: z.string().regex(/^[0-9a-fA-F]{24}$/),
     title: z.string().min(3).max(200),
     description: z.string().min(10),
@@ -123,7 +125,7 @@ export const schemas = {
     openings: z.number().int().positive().optional(),
     applicationUrl: z.string().url().optional(),
   }),
-  listingUpdate: z.object({
+  listingUpdate: strictObject({
     companyId: z
       .string()
       .regex(/^[0-9a-fA-F]{24}$/)
@@ -142,12 +144,11 @@ export const schemas = {
     openings: z.number().int().positive().optional(),
     applicationUrl: z.string().url().optional(),
   }),
-  action: z.object({
+  action: strictObject({
     adminNote: z.string().optional(),
     note: z.string().optional(),
   }),
-  placement: z
-    .object({
+  placement: strictObject({
       startDate: z.string().datetime(),
       endDate: z.string().datetime(),
       note: z.string().optional(),
@@ -155,11 +156,10 @@ export const schemas = {
     .refine((v) => new Date(v.startDate) < new Date(v.endDate), {
       message: "startDate must be before endDate.",
     }),
-  close: z.object({ reason: z.string().optional() }),
-  closeListing: z.object({ reason: z.string().optional() }),
-  expireListing: z.object({ reason: z.string().optional() }),
-  acceptInvitation: z
-    .object({
+  close: strictObject({ reason: z.string().optional() }),
+  closeListing: strictObject({ reason: z.string().optional() }),
+  expireListing: strictObject({ reason: z.string().optional() }),
+  acceptInvitation: strictObject({
       token: z.string().min(1),
       firstName: z.string().trim().min(1).max(80),
       lastName: z.string().trim().min(1).max(80),
@@ -174,7 +174,18 @@ export const validate =
   (schema: z.ZodType) =>
   (request: Request, _response: Response, next: NextFunction) => {
     const result = schema.safeParse(request.body);
-    if (!result.success) return next(badRequest("Invalid request body"));
+    if (!result.success) {
+      return next(
+        badRequest(
+          "Request validation failed",
+          result.error.issues.map((issue) => ({
+            path: issue.path.map(String).join(".") || "body",
+            message: issue.message,
+            code: issue.code,
+          })),
+        ),
+      );
+    }
     request.body = result.data;
     next();
   };

@@ -26,7 +26,12 @@ export function errorHandler(
     { code: appError.code },
   );
 
-  response
-    .status(appError.status)
-    .json({ error: { code: appError.code, message: appError.message } });
+  const responseError: {
+    code: string;
+    message: string;
+    details?: unknown;
+  } = { code: appError.code, message: appError.message };
+  if (appError.details !== undefined) responseError.details = appError.details;
+
+  response.status(appError.status).json({ error: responseError });
 }

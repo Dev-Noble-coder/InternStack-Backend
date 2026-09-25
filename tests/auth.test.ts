@@ -100,6 +100,30 @@ test("registration is student-only and rejects admin or arbitrary roles", async 
   expect(defaultResponse.body.user.role).toBe("student");
 });
 
+test("validation errors identify invalid, missing, and unknown fields", async () => {
+  const app = createApp(new MemoryEmailService());
+  const { agent, csrfToken } = await createCsrfAgent(app);
+  const response = await agent
+    .post("/api/auth/register")
+    .set("X-CSRF-Token", csrfToken)
+    .send({ email: "not-an-email", password: "short", nickname: "extra" })
+    .expect(400);
+
+  expect(response.body.error).toMatchObject({
+    code: "VALIDATION_ERROR",
+    message: "Request validation failed",
+  });
+  expect(response.body.error.details).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ path: "firstName" }),
+      expect.objectContaining({ path: "lastName" }),
+      expect.objectContaining({ path: "email" }),
+      expect.objectContaining({ path: "password" }),
+      expect.objectContaining({ path: "nickname" }),
+    ]),
+  );
+});
+
 test("verifies, logs in with cookies, reads me, rotates refresh, and logs out", async () => {
   const mail = new MemoryEmailService();
   const app = createApp(mail);
