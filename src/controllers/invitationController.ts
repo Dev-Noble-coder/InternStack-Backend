@@ -6,6 +6,7 @@ import { randomToken, hashSecret } from "../utils";
 import { createEmailService } from "../services/email";
 import { createAuditLog } from "../services/audit";
 import { objectIdParam } from "../validation";
+import { config } from "../config";
 const assertId = (value: unknown) => {
   if (!objectIdParam.safeParse(value).success)
     throw new AppError(400, "Invalid ID format.", "VALIDATION_ERROR");
@@ -38,7 +39,7 @@ export async function createInvitation(
     });
     const url = new URL(
       "/accept-invitation",
-      process.env.CLIENT_URL || "http://localhost:3000",
+      config.CLIENT_URL,
     );
     url.searchParams.set("token", token);
     await createEmailService().sendAdminInvitationEmail({
@@ -151,7 +152,7 @@ export async function resendAdminInvitation(
     await item.save();
     const url = new URL(
       "/accept-invitation",
-      process.env.CLIENT_URL || "http://localhost:3000",
+      config.CLIENT_URL,
     );
     url.searchParams.set("token", token);
     await createEmailService().sendAdminInvitationEmail({
