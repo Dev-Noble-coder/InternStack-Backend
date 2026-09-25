@@ -49,7 +49,12 @@ export function createApp(emailService: EmailService = createEmailService()) {
     ),
   );
   app.get("/health", (_request, response) => response.json({ status: "ok" }));
-  app.get("/docs", (_request, response) => response.type("html").send(docsHtml()));
+  app.get("/docs", (_request, response) =>
+    response
+      .set("X-Robots-Tag", "noindex, nofollow, noarchive")
+      .type("html")
+      .send(docsHtml()),
+  );
   app.get("/docs/styles.css", (_request, response) => response.type("css").send(docsCss));
   app.get("/docs/script.js", (_request, response) => response.type("application/javascript").send(docsJs));
   app.get("/ready", (_request, response) => {

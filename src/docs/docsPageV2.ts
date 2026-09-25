@@ -1,6 +1,6 @@
 import { apiDocs, ApiDoc } from "./apiDocs";
 
-const serverUrl = "https://internstack-backend.onrender.com";
+const serverUrl = "https://api.internstack.com.ng";
 
 const escapeHtml = (value: string) => value
   .replaceAll("&", "&amp;")
@@ -56,7 +56,8 @@ const responseExample = (doc: ApiDoc): string => {
   if (doc.path === "/api/student/dashboard") return json({ success: true, data: { profile: { firstName: "Ada", profilePicture: null, completionPercentage: 80 }, applications: { active: 1, total: 1 }, suggestedListings: [listing], notifications: { unreadCount: 2 } } });
   if (doc.path.includes("/applications")) return json({ success: true, data: { items: [application], pagination } });
   if (doc.path.includes("/submissions")) return json({ success: true, data: { items: [{ _id: "665f2e2a8f1a2b3c4d5e6f72", type: "url", sourceUrl: "https://example.com/internship", status: "pending" }], pagination } });
-  if (doc.path.includes("/notifications/unread-count")) return json({ success: true, data: { unreadCount: 2 } });
+  if (doc.path.includes("/notifications/unread-count")) return json({ success: true, data: { count: 0 } });
+  if (doc.path === "/api/logs") return json({ logs: [], page: 1, limit: 50, total: 0, pages: 0 });
   if (doc.path.includes("/notifications")) return json({ success: true, data: { items: [{ _id: "665f2f3a8f1a2b3c4d5e6f73", type: "APPLICATION_SUBMITTED", title: "Application submitted", message: "Your application was submitted.", isRead: false }], pagination } });
   if (doc.group === "Admin") return json({ success: true, data: { _id: "665f2c9e8f1a2b3c4d5e6f70", status: "active", name: "Example record", updatedAt: "2026-09-25T10:30:00.000Z" } });
   if (doc.group === "Invitations") return json({ success: true, data: { _id: "665f304a8f1a2b3c4d5e6f74", email: "admin@example.com", status: "pending", expiresAt: "2026-10-02T10:30:00.000Z" } });
@@ -106,7 +107,9 @@ const errorTitle = (status: string, description: string): string => {
   return "Request error";
 };
 
-const errors = (failureText: string) => '<div class="error-list">' + failureText.split(";").map((failure) => {
+const errors = (failureText: string) => /^No documented error response\.?$/i.test(failureText.trim())
+  ? '<p class="muted">No documented error responses.</p>'
+  : '<div class="error-list">' + failureText.split(";").map((failure) => {
   const item = failure.trim();
   const match = item.match(/^(\d{3,4})\s+(.*)$/);
   const status = match ? match[1] : "—";
@@ -127,27 +130,55 @@ const queryParameters = (doc: ApiDoc): ContractRow[] => {
     { name: "page", value: "integer, default 1", description: "Page number; must be at least 1." },
     { name: "limit", value: "integer, default 20, max 100", description: "Number of records to return." },
     { name: "location", value: "string", description: "Filter published listings by location." },
-    { name: "internshipType", value: "string", description: "Filter by internship type." },
+    { name: "internshipType", value: "SIWES | Industrial Training | General Internship | School Internship | Other", description: "Filter by internship type." },
     { name: "workMode", value: "onsite | remote | hybrid", description: "Filter by work mode." },
     { name: "category", value: "string", description: "Filter by listing category." },
     { name: "search", value: "string", description: "Text search across indexed listing fields." },
   ];
+  if (doc.path === "/api/admin/users") return [
+    { name: "page", value: "integer, default 1", description: "Page number." },
+    { name: "limit", value: "integer, default 20, max 100", description: "Number of users to return." },
+    { name: "role", value: "student | admin | super_admin", description: "Filter by user role." },
+    { name: "status", value: "active | suspended | deactivated", description: "Filter by account status." },
+    { name: "search", value: "string", description: "Search names, email, matric number, or institution." },
+  ];
+  if (doc.path === "/api/admin/companies") return [
+    { name: "page", value: "integer, default 1", description: "Page number." },
+    { name: "limit", value: "integer, default 20, max 100", description: "Number of companies to return." },
+    { name: "search", value: "string", description: "Search company name or website." },
+    { name: "state", value: "string", description: "Filter by company state." },
+  ];
+  if (doc.path === "/api/admin/listings") return [
+    { name: "page", value: "integer, default 1", description: "Page number." },
+    { name: "limit", value: "integer, default 20, max 100", description: "Number of listings to return." },
+    { name: "status", value: "published | closed | expired", description: "Filter by listing status." },
+    { name: "companyId", value: "ObjectId", description: "Filter by company." },
+    { name: "internshipType", value: "SIWES | Industrial Training | General Internship | School Internship | Other", description: "Filter by internship type." },
+    { name: "workMode", value: "onsite | remote | hybrid", description: "Filter by work mode." },
+    { name: "location", value: "string", description: "Filter by location." },
+    { name: "search", value: "string", description: "Search listing title or description." },
+  ];
+  if (doc.path === "/api/admin/invitations") return [
+    { name: "page", value: "integer, default 1", description: "Page number." },
+    { name: "limit", value: "integer, default 20, max 100", description: "Number of invitations to return." },
+    { name: "status", value: "pending | accepted | expired | revoked", description: "Filter by invitation status." },
+  ];
   if (doc.group === "Admin" && doc.path.includes("/applications")) return [
     { name: "page", value: "integer, default 1", description: "Page number." },
     { name: "limit", value: "integer, default 20, max 100", description: "Number of records to return." },
-    { name: "status", value: "string", description: "Filter applications by status." },
+    { name: "status", value: "applied | reviewed | accepted | rejected | withdrawn", description: "Filter applications by status." },
     { name: "listingId / companyId / studentId", value: "ObjectId", description: "Filter by related resource." },
     { name: "search", value: "string", description: "Search student name, email, or matric number." },
   ];
   if (doc.path.includes("/applications")) return [
     { name: "page", value: "integer, default 1", description: "Page number." },
     { name: "limit", value: "integer, default 20, max 100", description: "Number of records to return." },
-    { name: "status", value: "string", description: "Filter applications by status." },
+    { name: "status", value: "applied | reviewed | accepted | rejected | withdrawn", description: "Filter applications by status." },
   ];
   if (doc.path.includes("/submissions")) return [
     { name: "page", value: "integer, default 1", description: "Page number." },
     { name: "limit", value: "integer, default 20, max 100", description: "Number of records to return." },
-    { name: "status", value: "string", description: "Filter submissions by status." },
+    { name: "status", value: "pending | processing | failed | reviewed | approved | rejected", description: "Filter submissions by status." },
   ];
   if (doc.path === "/api/notifications") return [
     { name: "page", value: "integer, default 1", description: "Page number." },
@@ -158,7 +189,7 @@ const queryParameters = (doc: ApiDoc): ContractRow[] => {
     { name: "page", value: "integer, default 1", description: "Page number." },
     { name: "limit", value: "integer, default 20, max 100", description: "Number of records to return." },
     { name: "action", value: "string", description: "Filter by audit action." },
-    { name: "performedBy", value: "ObjectId", description: "Filter by performing user." },
+    { name: "performedBy / performedById", value: "ObjectId", description: "Filter by performing user; both parameter names are accepted." },
     { name: "targetType", value: "string", description: "Filter by target resource type." },
     { name: "targetId", value: "ObjectId", description: "Filter by target resource." },
     { name: "from / to", value: "ISO date", description: "Filter the timestamp range." },
@@ -213,14 +244,14 @@ const relatedPaths = (doc: ApiDoc): string[] => {
 };
 
 const fetchExample = (doc: ApiDoc) => {
-  if (doc.method === "WS") return 'const socket = new WebSocket("wss://internstack-backend.onrender.com/ws");\\nsocket.onmessage = (event) => console.log(JSON.parse(event.data));';
+  if (doc.method === "WS") return 'const socket = new WebSocket("wss://api.internstack.com.ng/ws");\\nsocket.onmessage = (event) => console.log(JSON.parse(event.data));';
   const body = doc.body ? ',\\n  body: JSON.stringify(' + doc.body.replaceAll("\\n", "\\n  ") + ')' : "";
   const headers = requestHeaders(doc).filter((header) => header.name !== "Accept").map((header) => '    "' + header.name + '": "' + header.value + '"').join(",\\n");
   return 'const response = await fetch("' + serverUrl + doc.path + '", {\\n  method: "' + doc.method + '",\\n  credentials: "include",\\n  headers: {\\n    "Accept": "application/json"' + (headers ? ",\\n" + headers : "") + '\\n  }' + body + '\\n});\\nconst data = await response.json();';
 };
 
 const curlExample = (doc: ApiDoc) => {
-  if (doc.method === "WS") return 'websocat "wss://internstack-backend.onrender.com/ws" --header="Cookie: access_token=<session-cookie>"';
+  if (doc.method === "WS") return 'websocat "wss://api.internstack.com.ng/ws" --header="Cookie: access_token=<session-cookie>"';
   const headers = requestHeaders(doc).map((header) => ' -H "' + header.name + ': ' + header.value + '"').join("");
   const body = doc.body ? " --data-raw \"" + JSON.stringify(JSON.parse(doc.body)).replaceAll("\\", "\\\\").replaceAll('"', '\\"') + "\"" : "";
   const cookies = requestCookies(doc).length ? ' --cookie "' + requestCookies(doc).map((cookie) => cookie.name + "=" + cookie.value).join("; ") + '"' : "";
@@ -266,17 +297,33 @@ const endpointCard = (doc: ApiDoc, index: number) => {
 
 const authGuide = '<section id="authentication-guide" class="guide"><div class="group-heading"><div><p class="eyebrow">START HERE</p><h2>Authentication and request setup</h2></div></div><p>Browser clients use httpOnly cookies for the access and refresh sessions. Mutating requests also use a CSRF cookie/header pair.</p><ol><li>Call <code>GET /api/auth/csrf</code> and keep the <code>csrf_token</code> cookie.</li><li>Send the returned token in <code>X-CSRF-Token</code> for every POST, PUT, PATCH, and DELETE request.</li><li>Send requests with <code>credentials: "include"</code> so authentication and CSRF cookies are included.</li><li>After login, the server sets <code>access_token</code> and <code>refresh_token</code> cookies; do not try to read the httpOnly values from browser JavaScript.</li></ol>' + code('const csrf = await fetch("/api/auth/csrf", { credentials: "include" });\\nconst { csrfToken } = await csrf.json();\\n\\nawait fetch("/api/student/profile", {\\n  method: "PUT",\\n  credentials: "include",\\n  headers: {\\n    "Content-Type": "application/json",\\n    "X-CSRF-Token": csrfToken\\n  },\\n  body: JSON.stringify({ institution: "Example University" })\\n});') + '</section>';
 
-const submissionGuide = '<section id="submission-protocol" class="guide"><div class="group-heading"><div><p class="eyebrow">SUBMISSION WORKFLOW</p><h3>URL extraction protocol</h3></div></div><p>Use the HTTP endpoint to create a submission, then use the WebSocket transport when the client needs live extraction progress.</p><div class="protocol-steps"><div><strong>1</strong><span>POST a URL to <code>/api/submissions</code>.</span></div><div><strong>2</strong><span>Store the returned <code>submissionId</code>.</span></div><div><strong>3</strong><span>Connect to <code>wss://internstack-backend.onrender.com/ws</code> with the access cookie.</span></div><div><strong>4</strong><span>Send <code>subscribe_submission</code> and handle queued, processing, completed, and failed events.</span></div></div>' + code('{ "type": "subscribe_submission", "submissionId": "665f2e2a8f1a2b3c4d5e6f72" }') + '</section>';
+const errorGuide = '<section class="guide"><div class="group-heading"><div><p class="eyebrow">ERROR HANDLING</p><h2>Error response format</h2></div></div><p>HTTP errors use one consistent JSON envelope. The <code>code</code> identifies the machine-readable failure and <code>message</code> is suitable for diagnostics or user-facing handling.</p>' + code('{ "error": { "code": "UNAUTHENTICATED", "message": "Authentication required" } }') + '<p class="note"><strong>Common codes:</strong> <code>VALIDATION_ERROR</code>, <code>UNAUTHENTICATED</code>, <code>FORBIDDEN</code>, <code>CSRF_INVALID</code>, <code>NOT_FOUND</code>, <code>RATE_LIMITED</code>, <code>CONFLICT</code>, and <code>INTERNAL_ERROR</code>. Endpoint cards list the statuses and operation-specific failures that apply.</p></section>';
+
+const submissionGuide = '<section id="submission-protocol" class="guide"><div class="group-heading"><div><p class="eyebrow">SUBMISSION WORKFLOW</p><h3>URL extraction protocol</h3></div></div><p>Use the HTTP endpoint to create a submission, then use the WebSocket transport when the client needs live extraction progress.</p><div class="protocol-steps"><div><strong>1</strong><span>POST a URL to <code>/api/submissions</code>.</span></div><div><strong>2</strong><span>Store the returned <code>submissionId</code>.</span></div><div><strong>3</strong><span>Connect to <code>wss://api.internstack.com.ng/ws</code> with the access cookie.</span></div><div><strong>4</strong><span>Send <code>subscribe_submission</code> and handle queued, processing, completed, and failed events.</span></div></div>' + code('{ "type": "subscribe_submission", "submissionId": "665f2e2a8f1a2b3c4d5e6f72" }') + '</section>';
+
+const docsCanonicalUrl = "https://api.internstack.com.ng/docs";
+const docsTitle = "InternStack API Documentation | Authentication, Listings and Submissions";
+const docsDescription = "Official InternStack API documentation for authentication, listings, applications, submissions, notifications, administration, and WebSocket events.";
+const docsStructuredData = JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  headline: docsTitle,
+  description: docsDescription,
+  url: docsCanonicalUrl,
+  image: "https://api.internstack.com.ng/logoo.png",
+  publisher: { "@type": "Organization", name: "InternStack", url: "https://internstack.com.ng" },
+  about: ["InternStack API", "Authentication", "Internship listings", "Applications", "WebSocket submissions"],
+  isPartOf: { "@type": "WebSite", name: "InternStack", url: "https://internstack.com.ng" },
+});
 
 export const docsHtml = () => {
   const navigation = '<a href="#overview" data-nav="overview">Overview</a><a href="#authentication-guide" data-nav="authentication-guide">Authentication & setup</a>' + groups.map((group) => '<a href="#' + slug(group) + '" data-nav="' + slug(group) + '">' + escapeHtml(group) + '</a>').join("");
   const sections = groups.map((group) => '<section class="api-group" id="' + slug(group) + '">' + (group === "Submissions" ? submissionGuide : "") + '<div class="group-heading"><div><p class="eyebrow">API GROUP</p><h2>' + escapeHtml(group) + '</h2></div><span>' + apiDocs.filter((doc) => doc.group === group).length + ' endpoints</span></div>' + apiDocs.filter((doc) => doc.group === group).map((doc, index) => endpointCard(doc, index)).join("") + '</section>').join("");
-  return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="InternStack backend API documentation"><title>InternStack API Reference</title><link rel="stylesheet" href="/docs/styles.css"></head><body>' +
+  return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="' + docsDescription + '"><meta name="robots" content="noindex,nofollow,noarchive"><meta name="author" content="InternStack"><meta name="application-name" content="InternStack API Documentation"><meta name="theme-color" content="#176b70"><meta name="referrer" content="strict-origin-when-cross-origin"><link rel="icon" type="image/png" href="https://api.internstack.com.ng/logoo.png"><meta property="og:type" content="website"><meta property="og:site_name" content="InternStack"><meta property="og:title" content="' + docsTitle + '"><meta property="og:description" content="' + docsDescription + '"><meta property="og:url" content="' + docsCanonicalUrl + '"><meta property="og:image" content="https://api.internstack.com.ng/logoo.png"><meta property="og:image:alt" content="InternStack logo"><meta name="twitter:card" content="summary"><meta name="twitter:title" content="' + docsTitle + '"><meta name="twitter:description" content="' + docsDescription + '"><meta name="twitter:image" content="https://api.internstack.com.ng/logoo.png"><meta name="twitter:image:alt" content="InternStack logo"><title>' + docsTitle + '</title><script type="application/ld+json">' + docsStructuredData + '</script><link rel="stylesheet" href="/docs/styles.css"></head><body>' +
     '<header class="topbar"><button id="menu" class="menu" type="button" aria-label="Open documentation menu">' + icons.menu + '</button><a class="brand" href="/docs"><img class="brand-logo" src="/logoo.png" alt="InternStack"><span>API Reference<small>Backend documentation</small></span></a><div class="search-wrap"><label class="search"><span class="search-icon">' + icons.search + '</span><input id="search" type="search" placeholder="Search endpoints..." autocomplete="off" aria-controls="search-results" aria-expanded="false"></label><div id="search-results" class="search-results" role="listbox" hidden></div></div><button id="theme" class="theme" type="button" aria-label="Toggle theme">' + icons.sun + '</button></header>' +
     '<div id="drawer-backdrop" class="drawer-backdrop" hidden></div><div class="layout"><aside class="sidebar"><div class="drawer-brand"><img class="brand-logo" src="/logoo.png" alt="InternStack"><span>API Reference<small>Backend documentation</small></span><button id="drawer-close" class="drawer-close" type="button" aria-label="Close documentation menu">×</button></div><nav>' + navigation + '</nav></aside><main>' +
     '<section id="overview" class="hero"><p class="eyebrow">INTERNSTACK BACKEND</p><h1>API Reference</h1><p>HTTP endpoints for authentication, listings, applications, submissions, notifications, and administration.</p><div class="reference-meta"><div><span>Base URL</span><code id="base-url">Current server</code></div><div><span>Format</span><strong>JSON</strong></div><div><span>Version</span><strong>v1</strong></div></div></section>' +
-    '<section class="callout"><strong>Before you start</strong><span>Send cookies with authenticated requests. Before a mutation, request <code>/api/auth/csrf</code> and send the returned token as <code>X-CSRF-Token</code>.</span></section>' + authGuide + sections +
-    '<p id="empty" class="empty" hidden>No endpoints match your search.</p></main></div><script src="/docs/script.js" defer></script></body></html>';
+    '<section class="callout"><strong>Before you start</strong><span>Send cookies with authenticated requests. Before a mutation, request <code>/api/auth/csrf</code> and send the returned token as <code>X-CSRF-Token</code>.</span></section>' + authGuide + errorGuide + sections + '<p id="empty" class="empty" hidden>No endpoints match your search.</p></main></div><script src="/docs/script.js" defer></script></body></html>';
 };
 
 export const docsCss = [
@@ -305,7 +352,7 @@ export const docsJs = [
   "const baseUrl=document.querySelector('#base-url');",
   "const cards=[...document.querySelectorAll('.endpoint')];",
   "const nav=[...document.querySelectorAll('[data-nav]')];",
-  "baseUrl.textContent='https://internstack-backend.onrender.com';",
+  "baseUrl.textContent='https://api.internstack.com.ng';",
   "const fuzzy=(text,word)=>{let i=0;for(const char of text){if(char===word[i])i++;if(i===word.length)return true}return false};",
   "const score=(card,q)=>{const text=card.dataset.search;let points=0;q.split(/\\s+/).filter(Boolean).forEach(word=>{if(text.includes(word))points+=3;else if(fuzzy(text,word))points+=1});return points};",
   "const renderResults=()=>{const q=search.value.trim().toLowerCase();if(!q){results.hidden=true;search.setAttribute('aria-expanded','false');return}const ranked=cards.map(card=>({card,points:score(card,q)})).filter(x=>x.points>0).sort((a,b)=>b.points-a.points).slice(0,8);results.innerHTML=ranked.length?ranked.map((x,i)=>{const button=x.card.querySelector('.endpoint-toggle');const method=button.querySelector('.method').textContent;const path=button.querySelector('code').textContent;const summary=x.card.querySelector('.summary').textContent;return '<button class=\"search-result\" type=\"button\" data-target=\"'+x.card.id+'\" role=\"option\" data-index=\"'+i+'\"><span class=\"result-method\">'+method+'</span>'+path+'<small>'+summary+'</small></button>'}).join(''):'<div class=\"search-result\">No matching endpoints<small>Try a path, method, group, or error code.</small></div>';results.hidden=false;search.setAttribute('aria-expanded','true')};",
